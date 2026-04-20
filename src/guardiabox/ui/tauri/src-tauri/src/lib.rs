@@ -7,7 +7,6 @@
 //!      allowlisted in `capabilities/default.json`.
 //!   4. Host the WebView2 window with frameless + transparent chrome.
 
-use tauri::Manager;
 use tracing::info;
 
 mod sidecar;

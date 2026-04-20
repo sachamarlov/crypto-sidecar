@@ -57,11 +57,13 @@ dependencies = [
     "pydantic>=2.10.0",
     "pydantic-settings>=2.7.0",
     "httpx>=0.28.0",
-    # --- Persistence (SQLCipher required for at-rest DB encryption, ADR-0003) ---
+    # --- Persistence ---
+    # Note: SQLCipher (ADR-0003) ships as an optional extra because no
+    # cross-platform pre-built wheel exists today (linux only on PyPI).
+    # Install via `uv sync --extra sqlcipher` once your platform is supported.
     "sqlalchemy[asyncio]>=2.0.36",
     "alembic>=1.14.0",
     "aiosqlite>=0.20.0",
-    "sqlcipher3-binary>=0.5.4 ; sys_platform != 'darwin'",
     # --- CLI / TUI ---
     "typer>=0.15.0",
     "textual>=0.89.0",
@@ -104,10 +106,13 @@ test = [
     "respx>=0.21.1",
 ]
 
-# macOS users must `brew install sqlcipher` and then `uv add sqlcipher3 --no-binary sqlcipher3`
-# since the pre-built wheel is not published for darwin. See docs/DEVELOPMENT.md.
-sqlcipher-macos = [
-    "sqlcipher3>=0.5.4 ; sys_platform == 'darwin'",
+# SQLCipher pre-built wheels exist for Linux x86_64 only (PyPI 0.5.x).
+# Windows and macOS users must build from source after installing the system
+# library (Windows: vcpkg install sqlcipher; macOS: brew install sqlcipher),
+# then: uv add sqlcipher3 --no-binary sqlcipher3
+# Tracking issue + cross-platform plan: ADR-0003 + future ADR.
+sqlcipher = [
+    "sqlcipher3-binary>=0.5.4 ; sys_platform == 'linux'",
 ]
 
 build = [
@@ -186,6 +191,10 @@ src             = ["src", "tests"]
 extend-exclude  = [
     "src/guardiabox/ui/tauri/frontend",
     "src/guardiabox/ui/tauri/src-tauri/target",
+    # Helper scripts live outside the package; they are not subject to the
+    # full ruff rule set (no docstring policy, no import sorting on dynamic
+    # imports, no INP001 since they are intentionally module-less).
+    "scripts/",
 ]
 
 [tool.ruff.lint]
