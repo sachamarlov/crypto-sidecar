@@ -67,10 +67,7 @@ def make_png(width: int, height: int, rgba: tuple[int, int, int, int] = ACCENT_R
         raw += b"\x00" + pixel * width  # filter byte 0 (None) + scanline
     idat = zlib.compress(raw, level=9)
     return (
-        signature
-        + _png_chunk(b"IHDR", ihdr)
-        + _png_chunk(b"IDAT", idat)
-        + _png_chunk(b"IEND", b"")
+        signature + _png_chunk(b"IHDR", ihdr) + _png_chunk(b"IDAT", idat) + _png_chunk(b"IEND", b"")
     )
 
 
@@ -86,9 +83,14 @@ def make_ico(sizes: tuple[int, ...] = (16, 32, 48, 64, 128, 256)) -> bytes:
         h = 0 if size == 256 else size
         directory += struct.pack(
             "<BBBBHHII",
-            w, h, 0, 0,  # width, height, palette, reserved
-            1, 32,        # planes, bits per pixel
-            len(image), offset,
+            w,
+            h,
+            0,
+            0,  # width, height, palette, reserved
+            1,
+            32,  # planes, bits per pixel
+            len(image),
+            offset,
         )
         offset += len(image)
     return header + directory + b"".join(images)
@@ -138,8 +140,7 @@ def main() -> int:
     for name in written:
         sys.stdout.write(f"  - {name}\n")
     sys.stdout.write(
-        "\nReplace with real artwork via `pnpm tauri icon path/to/source.png` "
-        "when available.\n"
+        "\nReplace with real artwork via `pnpm tauri icon path/to/source.png` when available.\n"
     )
     return 0
 

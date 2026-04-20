@@ -50,9 +50,7 @@ def main() -> int:
         f"    --specpath {ROOT / 'build' / 'pyinstaller'} \\\n"
         f"    {SIDECAR_ENTRY}\n"
     )
-    sys.stdout.write(
-        "\nReal implementation tracked in docs/specs/000-tauri-sidecar/plan.md.\n"
-    )
+    sys.stdout.write("\nReal implementation tracked in docs/specs/000-tauri-sidecar/plan.md.\n")
     return 0
 
 
