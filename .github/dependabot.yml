@@ -18,6 +18,28 @@ updates:
       prefix: "build"
       include: "scope"
     versioning-strategy: increase-if-necessary
+    groups:
+      pytest:
+        patterns:
+          - "pytest*"
+          - "hypothesis"
+      cryptography:
+        patterns:
+          - "cryptography"
+          - "argon2-cffi"
+          - "zxcvbn"
+          - "sqlcipher3*"
+      sqlalchemy:
+        patterns:
+          - "sqlalchemy*"
+          - "alembic"
+          - "aiosqlite"
+      fastapi:
+        patterns:
+          - "fastapi"
+          - "uvicorn*"
+          - "pydantic*"
+          - "httpx"
 
   - package-ecosystem: "npm"
     directory: "/src/guardiabox/ui/tauri/frontend"
@@ -28,6 +50,36 @@ updates:
       prefix: "build"
       include: "scope"
     versioning-strategy: increase-if-necessary
+    groups:
+      tanstack:
+        patterns:
+          - "@tanstack/*"
+      radix:
+        patterns:
+          - "@radix-ui/*"
+      tauri-plugins:
+        patterns:
+          - "@tauri-apps/*"
+      react-three:
+        patterns:
+          - "@react-three/*"
+          - "three"
+          - "@types/three"
+      testing:
+        patterns:
+          - "@testing-library/*"
+          - "vitest"
+          - "@vitest/*"
+          - "@playwright/test"
+          - "axe-playwright"
+          - "happy-dom"
+          - "msw"
+      tailwind:
+        patterns:
+          - "tailwindcss"
+          - "@tailwindcss/*"
+          - "tw-animate-css"
+          - "tailwind-merge"
 
   - package-ecosystem: "cargo"
     directory: "/src/guardiabox/ui/tauri/src-tauri"
@@ -37,3 +89,7 @@ updates:
     commit-message:
       prefix: "build"
       include: "scope"
+    groups:
+      tauri:
+        patterns:
+          - "tauri*"

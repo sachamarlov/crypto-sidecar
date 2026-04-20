@@ -5,7 +5,7 @@ import { LockKeyhole } from "lucide-react";
  * Top-level shell. Replaced by TanStack Router once routes are scaffolded.
  * Kept as a single placeholder for the bootstrap commit.
  */
-export function App(): JSX.Element {
+export function App() {
   return (
     <div className="relative min-h-screen overflow-hidden bg-background text-foreground">
       <BackgroundAurora />
@@ -38,7 +38,7 @@ export function App(): JSX.Element {
   );
 }
 
-function BackgroundAurora(): JSX.Element {
+function BackgroundAurora() {
   return (
     <div
       aria-hidden

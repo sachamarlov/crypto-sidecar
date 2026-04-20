@@ -1,0 +1,110 @@
+site_name: GuardiaBox
+site_description: Local-first secure vault — documentation interne.
+site_url: https://github.com/sachamarlov/crypto-sidecar
+repo_url: https://github.com/sachamarlov/crypto-sidecar
+repo_name: sachamarlov/crypto-sidecar
+edit_uri: edit/main/docs/
+
+copyright: Copyright &copy; 2026 Sacha Marlov
+
+theme:
+  name: material
+  language: fr
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - navigation.tracking
+    - search.highlight
+    - search.suggest
+    - search.share
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+    - toc.follow
+  palette:
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+  font:
+    text: Inter
+    code: JetBrains Mono
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_style: google
+            show_source: false
+            show_root_heading: true
+            members_order: source
+
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+
+nav:
+  - Vue d'ensemble: README.md
+  - Spécification produit: SPEC.md
+  - Architecture: ARCHITECTURE.md
+  - Modèle de menace: THREAT_MODEL.md
+  - Décisions cryptographiques: CRYPTO_DECISIONS.md
+  - Conventions de code: CONVENTIONS.md
+  - Guide développeur: DEVELOPMENT.md
+  - Décisions architecturales (ADR):
+    - 0000 — Adopt MADR: adr/0000-record-architectural-decisions.md
+    - 0001 — Tauri 2 + Python sidecar: adr/0001-use-tauri-2-with-python-sidecar.md
+    - 0002 — AES-GCM + dual KDF: adr/0002-aes-gcm-with-dual-kdf.md
+    - 0003 — SQLCipher at rest: adr/0003-sqlcipher-for-database-at-rest.md
+    - 0004 — RSA-OAEP hybrid sharing: adr/0004-rsa-oaep-hybrid-sharing.md
+    - 0005 — Vite over Next.js: adr/0005-vite-over-nextjs-for-tauri.md
+    - 0006 — uv over Poetry: adr/0006-uv-over-poetry.md
+    - 0007 — Conventional Commits + release-please: adr/0007-conventional-commits-release-please.md
+    - 0008 — Spec-Driven Development: adr/0008-spec-driven-development.md
+    - 0009 — Fine-grained PAT: adr/0009-github-fine-grained-pat.md
+    - 0010 — Apache 2.0 license: adr/0010-license-apache-2.md
+  - Spécifications fonctionnelles:
+    - 001 — Encrypt file: specs/001-encrypt-file/spec.md
+    - 002 — Decrypt file: specs/002-decrypt-file/spec.md
+    - 003 — RSA share: specs/003-rsa-share/spec.md
+    - 004 — Secure delete: specs/004-secure-delete/spec.md
+docs_dir: docs
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/sachamarlov/crypto-sidecar

@@ -1,5 +1,4 @@
 node_modules
-dist
 dist-ssr
 coverage
 .vite
@@ -8,3 +7,15 @@ coverage
 .env.*
 !.env.example
 src/routeTree.gen.ts
+tests-e2e/.results
+tests-e2e/.report
+playwright-report
+test-results
+
+# Note: dist/ is not ignored because we keep a placeholder index.html so that
+# `cargo check` on the Tauri shell can succeed before `pnpm build` has run.
+# Generated artefacts inside dist/ are not committed (see below).
+dist/assets/
+dist/*.js
+dist/*.css
+dist/*.map

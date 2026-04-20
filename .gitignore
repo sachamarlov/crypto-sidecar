@@ -89,7 +89,7 @@ src-tauri/gen/
 # =============================================================================
 # IDE & editors
 # =============================================================================
-.vscode/
+.vscode/*
 !.vscode/settings.json.example
 !.vscode/extensions.json
 !.vscode/launch.json.example

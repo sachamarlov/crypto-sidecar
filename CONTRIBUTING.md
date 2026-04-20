@@ -64,10 +64,16 @@ Examples:
 
 ## Code style
 
-- Python: `ruff check` + `ruff format` + `ty check` must pass. See
-  [`docs/CONVENTIONS.md`](docs/CONVENTIONS.md).
+- Python: `ruff check` + `ruff format` + `mypy --strict` must pass. We track
+  Astral's `ty` type-checker for adoption once it is stable on PyPI; until
+  then `mypy` is authoritative. See [`docs/CONVENTIONS.md`](docs/CONVENTIONS.md).
 - TypeScript: `biome check` must pass. Strict mode is mandatory.
 - Rust (Tauri): `cargo fmt` + `cargo clippy --all-targets -- -D warnings`.
+
+The `commit-msg` Conventional-Commits gate is enforced by the
+`compilerla/conventional-pre-commit` hook configured in
+[`.pre-commit-config.yaml`](.pre-commit-config.yaml). No JavaScript-side
+`commitlint` / `husky` is needed — pre-commit handles the entire chain.
 
 ## Tests
 

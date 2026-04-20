@@ -13,6 +13,7 @@ Implementation deliberately deferred — see
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import ClassVar, Self
 
 
 @dataclass(frozen=True, slots=True)
@@ -23,7 +24,8 @@ class Pbkdf2Kdf:
     """
 
     iterations: int = 600_000
-    kdf_id: int = 0x01
+
+    kdf_id: ClassVar[int] = 0x01
 
     def derive(self, password: bytes, salt: bytes, length: int) -> bytes:
         raise NotImplementedError("See docs/specs/001-encrypt-file/plan.md")
@@ -32,7 +34,7 @@ class Pbkdf2Kdf:
         raise NotImplementedError
 
     @classmethod
-    def decode_params(cls, blob: bytes) -> Pbkdf2Kdf:
+    def decode_params(cls, blob: bytes) -> Self:  # noqa: ARG003 — stub
         raise NotImplementedError
 
 
@@ -43,7 +45,8 @@ class Argon2idKdf:
     memory_cost_kib: int = 65_536
     time_cost: int = 3
     parallelism: int = 1
-    kdf_id: int = 0x02
+
+    kdf_id: ClassVar[int] = 0x02
 
     def derive(self, password: bytes, salt: bytes, length: int) -> bytes:
         raise NotImplementedError("See docs/specs/001-encrypt-file/plan.md")
@@ -52,5 +55,5 @@ class Argon2idKdf:
         raise NotImplementedError
 
     @classmethod
-    def decode_params(cls, blob: bytes) -> Argon2idKdf:
+    def decode_params(cls, blob: bytes) -> Self:  # noqa: ARG003 — stub
         raise NotImplementedError

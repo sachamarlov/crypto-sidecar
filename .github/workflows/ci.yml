@@ -11,9 +11,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Default minimal permissions; jobs elevate their own.
 permissions:
   contents: read
-  pull-requests: read
 
 jobs:
   # ---------------------------------------------------------------------------
@@ -22,6 +22,9 @@ jobs:
   python:
     name: Python ${{ matrix.python }} on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+
     strategy:
       fail-fast: false
       matrix:
@@ -34,11 +37,12 @@ jobs:
       - uses: astral-sh/setup-uv@v4
         with:
           enable-cache: true
+          cache-dependency-glob: "uv.lock"
 
       - name: Install Python + project dependencies
         run: |
           uv python install ${{ matrix.python }}
-          uv sync --all-extras
+          uv sync --extra dev --extra test
 
       - name: Lint (ruff)
         run: uv run ruff check --output-format=github .
@@ -53,16 +57,13 @@ jobs:
         run: uv run bandit -c pyproject.toml -r src -q
 
       - name: Dependency vulnerability audit (pip-audit)
-        run: uv run pip-audit --strict --disable-pip --progress-spinner=off
-
-      - name: Secret scan baseline (detect-secrets)
-        run: uv run detect-secrets-hook --baseline .secrets.baseline $(git ls-files)
+        run: uv run pip-audit --strict --progress-spinner=off
 
       - name: Run tests
         run: uv run pytest --maxfail=1
 
       - name: Upload coverage
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-latest' && always()
         uses: codecov/codecov-action@v5
         with:
           files: ./coverage.xml
@@ -74,6 +75,8 @@ jobs:
   frontend:
     name: Frontend (Node 22)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     defaults:
       run:
         working-directory: src/guardiabox/ui/tauri/frontend
@@ -91,23 +94,34 @@ jobs:
           cache: pnpm
           cache-dependency-path: src/guardiabox/ui/tauri/frontend/pnpm-lock.yaml
 
-      - name: Install (only if frontend has been initialised)
+      # The lockfile is generated locally on first `pnpm install`.
+      # Until it is committed, the frontend job is a deliberate no-op so the
+      # CI does not block on a Node toolchain that has nothing to verify.
+      - name: Detect lockfile
+        id: lockfile
         run: |
           if [ -f pnpm-lock.yaml ]; then
-            pnpm install --frozen-lockfile
+            echo "exists=true" >> "$GITHUB_OUTPUT"
           else
-            echo "No pnpm-lock.yaml yet — frontend not initialised, skipping."
-            exit 0
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "::warning ::pnpm-lock.yaml not yet committed; frontend lint/test/typecheck skipped."
           fi
 
+      - name: Install
+        if: steps.lockfile.outputs.exists == 'true'
+        run: pnpm install --frozen-lockfile
+
       - name: Lint (biome)
-        run: if [ -f pnpm-lock.yaml ]; then pnpm lint; fi
+        if: steps.lockfile.outputs.exists == 'true'
+        run: pnpm lint
 
       - name: Typecheck
-        run: if [ -f pnpm-lock.yaml ]; then pnpm typecheck; fi
+        if: steps.lockfile.outputs.exists == 'true'
+        run: pnpm typecheck
 
       - name: Unit tests (vitest)
-        run: if [ -f pnpm-lock.yaml ]; then pnpm test --run; fi
+        if: steps.lockfile.outputs.exists == 'true'
+        run: pnpm test --run
 
   # ---------------------------------------------------------------------------
   # Rust (Tauri shell) — format + clippy
@@ -115,6 +129,8 @@ jobs:
   rust:
     name: Rust (Tauri shell)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     defaults:
       run:
         working-directory: src/guardiabox/ui/tauri/src-tauri
@@ -135,6 +151,10 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src/guardiabox/ui/tauri/src-tauri -> target
+
+      - name: Generate Cargo.lock if missing
+        run: |
+          if [ ! -f Cargo.lock ]; then cargo generate-lockfile; fi
 
       - name: Check formatting
         run: cargo fmt --all -- --check

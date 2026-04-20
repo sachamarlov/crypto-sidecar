@@ -1,0 +1,90 @@
+{
+  "// Note": "Copy this file to .vscode/settings.json (gitignored) to share editor preferences.",
+
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "charliermarsh.ruff",
+  "editor.codeActionsOnSave": {
+    "source.fixAll": "explicit",
+    "source.organizeImports": "explicit"
+  },
+
+  "files.eol": "\n",
+  "files.insertFinalNewline": true,
+  "files.trimTrailingWhitespace": true,
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/.pytest_cache": true,
+    "**/.mypy_cache": true,
+    "**/.ruff_cache": true,
+    "**/node_modules": true,
+    "**/dist": false,
+    "**/.vite": true,
+    "**/target": true
+  },
+
+  "python.analysis.typeCheckingMode": "strict",
+  "python.testing.pytestEnabled": true,
+  "python.testing.unittestEnabled": false,
+
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.tabSize": 4,
+    "editor.rulers": [100]
+  },
+
+  "[typescript]": {
+    "editor.defaultFormatter": "biomejs.biome",
+    "editor.tabSize": 2
+  },
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "biomejs.biome",
+    "editor.tabSize": 2
+  },
+  "[javascript]": {
+    "editor.defaultFormatter": "biomejs.biome",
+    "editor.tabSize": 2
+  },
+  "[json]": {
+    "editor.defaultFormatter": "biomejs.biome"
+  },
+  "[jsonc]": {
+    "editor.defaultFormatter": "biomejs.biome"
+  },
+
+  "[rust]": {
+    "editor.defaultFormatter": "rust-lang.rust-analyzer",
+    "editor.tabSize": 4
+  },
+
+  "[markdown]": {
+    "editor.formatOnSave": false
+  },
+
+  "rust-analyzer.linkedProjects": [
+    "src/guardiabox/ui/tauri/src-tauri/Cargo.toml"
+  ],
+
+  "tailwindCSS.experimental.classRegex": [
+    ["cva\\(([^)]*)\\)", "[\"'`]([^\"'`]*).*?[\"'`]"],
+    ["cn\\(([^)]*)\\)", "(?:'|\"|`)([^']*)(?:'|\"|`)"]
+  ],
+
+  "cSpell.words": [
+    "guardiabox",
+    "argon",
+    "pbkdf",
+    "sqlcipher",
+    "zxcvbn",
+    "structlog",
+    "pyinstaller",
+    "tauri",
+    "tanstack",
+    "shadcn",
+    "Aceternity",
+    "framer",
+    "lucide",
+    "zustand",
+    "vitest",
+    "biome"
+  ]
+}

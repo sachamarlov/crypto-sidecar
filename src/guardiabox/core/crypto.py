@@ -10,14 +10,15 @@ Implementation deliberately deferred — see
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import ClassVar
 
 
 @dataclass(frozen=True, slots=True)
 class AesGcmCipher:
     """AES-256-GCM with 12-byte nonces (NIST SP 800-38D recommended)."""
 
-    nonce_bytes: int = 12
-    tag_bytes: int = 16
+    nonce_bytes: ClassVar[int] = 12
+    tag_bytes: ClassVar[int] = 16
 
     def encrypt(
         self,
