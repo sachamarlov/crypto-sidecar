@@ -12,6 +12,10 @@ permissions:
 jobs:
   release-please:
     runs-on: ubuntu-latest
+    # Pull-request creation requires "Allow GitHub Actions to create and approve
+    # pull requests" under Settings → Actions → General. The workflow is kept
+    # non-blocking so the main CI stays green until that setting is flipped.
+    continue-on-error: true
     steps:
       - uses: googleapis/release-please-action@v4
         with:

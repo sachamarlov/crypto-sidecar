@@ -166,8 +166,11 @@ exclude = [
 
 [tool.uv]
 package           = true
-default-groups    = ["dev", "test"]
 required-version  = ">=0.5.0"
+
+# Note: `default-groups` is intentionally omitted. Use
+#   `uv sync --extra dev --extra test`
+# (or `uv sync --all-extras` locally) to install dev/test dependencies.
 
 [tool.uv.sources]
 # Reserved for path/git overrides if needed.

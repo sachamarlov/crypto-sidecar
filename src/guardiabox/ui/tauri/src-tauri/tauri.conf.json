@@ -50,7 +50,6 @@
       "icons/icon.ico"
     ],
     "resources": [],
-    "externalBin": ["binaries/guardiabox-sidecar"],
     "windows": {
       "wix": {
         "language": ["en-US", "fr-FR"]
