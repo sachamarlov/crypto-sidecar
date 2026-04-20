@@ -7,8 +7,8 @@ namespace tight and import time fast.
 from __future__ import annotations
 
 import os
-import sys
 from pathlib import Path
+import sys
 
 import pytest
 

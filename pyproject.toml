@@ -266,6 +266,10 @@ ignore = [
     "TC001",  # Move first-party import to TYPE_CHECKING — runtime usage is common
     "TC002",  # Same for third-party
     "TC003",  # Same for stdlib
+    "ARG001", # Typer / Click callbacks require `ctx` in the signature
+    "PLC0415",# Lazy imports are intentional (CLI startup time)
+    "PLR6301",# Framework-mandated instance methods (Textual compose, etc.)
+    "F401",   # Stub-phase re-exports; tightened per-module once features land
 ]
 unfixable = [
     "ERA001", # commented code — never auto-remove, always review

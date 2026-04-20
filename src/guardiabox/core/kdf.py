@@ -34,7 +34,7 @@ class Pbkdf2Kdf:
         raise NotImplementedError
 
     @classmethod
-    def decode_params(cls, blob: bytes) -> Self:  # noqa: ARG003 — stub
+    def decode_params(cls, blob: bytes) -> Self:
         raise NotImplementedError
 
 
@@ -55,5 +55,5 @@ class Argon2idKdf:
         raise NotImplementedError
 
     @classmethod
-    def decode_params(cls, blob: bytes) -> Self:  # noqa: ARG003 — stub
+    def decode_params(cls, blob: bytes) -> Self:
         raise NotImplementedError

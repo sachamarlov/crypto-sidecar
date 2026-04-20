@@ -16,6 +16,6 @@ class GuardiaBoxApp(App[None]):
     TITLE = "GuardiaBox"
     SUB_TITLE = "Local secure vault"
 
-    def compose(self) -> ComposeResult:  # noqa: D401 — Textual API
+    def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
         yield Footer()

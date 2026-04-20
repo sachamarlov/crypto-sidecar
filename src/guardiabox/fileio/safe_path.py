@@ -12,8 +12,8 @@ from pathlib import Path
 
 # Imported for documentation; the implementation will raise these.
 from guardiabox.core.exceptions import (
-    PathTraversalError as PathTraversalError,
-    SymlinkEscapeError as SymlinkEscapeError,
+    PathTraversalError,
+    SymlinkEscapeError,
 )
 
 

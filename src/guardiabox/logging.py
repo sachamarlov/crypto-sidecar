@@ -54,9 +54,7 @@ def configure(level: str = "INFO", *, json: bool = False) -> None:
     ]
 
     renderer: Processor = (
-        structlog.processors.JSONRenderer()
-        if json
-        else structlog.dev.ConsoleRenderer(colors=True)
+        structlog.processors.JSONRenderer() if json else structlog.dev.ConsoleRenderer(colors=True)
     )
 
     structlog.configure(
@@ -72,4 +70,8 @@ def configure(level: str = "INFO", *, json: bool = False) -> None:
 
 def get_logger(name: str | None = None) -> structlog.stdlib.BoundLogger:
     """Return a bound structlog logger; ``name`` defaults to the caller module."""
-    return structlog.get_logger(name)
+    # structlog.get_logger() returns Any (BoundLoggerLazyProxy at module load),
+    # but resolves to a real BoundLogger on first call. We assert the runtime
+    # type for the type checker without paying for an isinstance check.
+    logger: structlog.stdlib.BoundLogger = structlog.get_logger(name)
+    return logger
