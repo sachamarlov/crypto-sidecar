@@ -1,0 +1,39 @@
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "github-actions"]
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "python"]
+    commit-message:
+      prefix: "build"
+      include: "scope"
+    versioning-strategy: increase-if-necessary
+
+  - package-ecosystem: "npm"
+    directory: "/src/guardiabox/ui/tauri/frontend"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "javascript"]
+    commit-message:
+      prefix: "build"
+      include: "scope"
+    versioning-strategy: increase-if-necessary
+
+  - package-ecosystem: "cargo"
+    directory: "/src/guardiabox/ui/tauri/src-tauri"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "rust"]
+    commit-message:
+      prefix: "build"
+      include: "scope"

@@ -1,0 +1,45 @@
+name: Bug report
+description: Something that used to work, or that demonstrably should work, doesn't.
+labels: ["bug", "needs-triage"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Before you file:**
+        - 🔒 For security vulnerabilities, please follow [`SECURITY.md`](../../SECURITY.md) instead.
+        - Check you're on the latest `main` or a tagged release.
+  - type: input
+    id: version
+    attributes:
+      label: GuardiaBox version
+      placeholder: "e.g. v0.1.0 or commit SHA"
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: "Windows 11 26H1 / Ubuntu 24.04 / macOS 15.1"
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you see, what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Copy-paste commands or click paths.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Relevant stderr / structlog output. **Redact anything sensitive.**
+      render: text

@@ -1,0 +1,59 @@
+# Auto detect text files and perform LF normalization
+* text=auto eol=lf
+
+# Source code
+*.py     text eol=lf diff=python
+*.pyi    text eol=lf diff=python
+*.rs     text eol=lf diff=rust
+*.ts     text eol=lf
+*.tsx    text eol=lf
+*.js     text eol=lf
+*.jsx    text eol=lf
+*.json   text eol=lf
+*.jsonc  text eol=lf
+*.toml   text eol=lf
+*.yaml   text eol=lf
+*.yml    text eol=lf
+*.md     text eol=lf
+*.html   text eol=lf
+*.css    text eol=lf
+*.scss   text eol=lf
+
+# Shell scripts must be LF
+*.sh     text eol=lf
+*.bash   text eol=lf
+
+# Windows batch files must be CRLF
+*.bat    text eol=crlf
+*.cmd    text eol=crlf
+*.ps1    text eol=crlf
+
+# Binary files
+*.png    binary
+*.jpg    binary
+*.jpeg   binary
+*.gif    binary
+*.ico    binary
+*.icns   binary
+*.svg    text eol=lf
+*.pdf    binary
+*.zip    binary
+*.tar.gz binary
+*.exe    binary
+*.dll    binary
+*.so     binary
+*.dylib  binary
+*.woff   binary
+*.woff2  binary
+*.ttf    binary
+*.otf    binary
+
+# Lockfiles — diff but no merge
+package-lock.json -diff merge=ours
+pnpm-lock.yaml    -diff merge=ours
+uv.lock           -diff merge=ours
+Cargo.lock        -diff merge=ours
+
+# Generated files (excluded from diff stats)
+*.generated.* linguist-generated=true
+docs/cahier-des-charges/* linguist-vendored=true

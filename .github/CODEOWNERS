@@ -1,0 +1,11 @@
+# Default owner of everything in the repo.
+*                                                   @sachamarlov
+
+# Cryptographic code — requires security-aware review.
+/src/guardiabox/core/                               @sachamarlov
+/src/guardiabox/security/                           @sachamarlov
+/docs/CRYPTO_DECISIONS.md                           @sachamarlov
+/docs/THREAT_MODEL.md                               @sachamarlov
+
+# Architectural decisions — tracked, never silently modified.
+/docs/adr/                                          @sachamarlov

@@ -1,0 +1,143 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Python — lint / type / test / security
+  # ---------------------------------------------------------------------------
+  python:
+    name: Python ${{ matrix.python }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Install Python + project dependencies
+        run: |
+          uv python install ${{ matrix.python }}
+          uv sync --all-extras
+
+      - name: Lint (ruff)
+        run: uv run ruff check --output-format=github .
+
+      - name: Format check (ruff)
+        run: uv run ruff format --check .
+
+      - name: Type check (mypy strict)
+        run: uv run mypy src
+
+      - name: Security static analysis (bandit)
+        run: uv run bandit -c pyproject.toml -r src -q
+
+      - name: Dependency vulnerability audit (pip-audit)
+        run: uv run pip-audit --strict --disable-pip --progress-spinner=off
+
+      - name: Secret scan baseline (detect-secrets)
+        run: uv run detect-secrets-hook --baseline .secrets.baseline $(git ls-files)
+
+      - name: Run tests
+        run: uv run pytest --maxfail=1
+
+      - name: Upload coverage
+        if: matrix.os == 'ubuntu-latest'
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./coverage.xml
+          fail_ci_if_error: false
+
+  # ---------------------------------------------------------------------------
+  # Frontend — lint / type / test (Tauri build covered by release workflow)
+  # ---------------------------------------------------------------------------
+  frontend:
+    name: Frontend (Node 22)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/guardiabox/ui/tauri/frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: src/guardiabox/ui/tauri/frontend/pnpm-lock.yaml
+
+      - name: Install (only if frontend has been initialised)
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            pnpm install --frozen-lockfile
+          else
+            echo "No pnpm-lock.yaml yet — frontend not initialised, skipping."
+            exit 0
+          fi
+
+      - name: Lint (biome)
+        run: if [ -f pnpm-lock.yaml ]; then pnpm lint; fi
+
+      - name: Typecheck
+        run: if [ -f pnpm-lock.yaml ]; then pnpm typecheck; fi
+
+      - name: Unit tests (vitest)
+        run: if [ -f pnpm-lock.yaml ]; then pnpm test --run; fi
+
+  # ---------------------------------------------------------------------------
+  # Rust (Tauri shell) — format + clippy
+  # ---------------------------------------------------------------------------
+  rust:
+    name: Rust (Tauri shell)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/guardiabox/ui/tauri/src-tauri
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Install Tauri system deps (Ubuntu)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev \
+            librsvg2-dev patchelf libssl-dev
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src/guardiabox/ui/tauri/src-tauri -> target
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings

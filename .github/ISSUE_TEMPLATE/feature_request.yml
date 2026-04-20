@@ -1,0 +1,34 @@
+name: Feature request
+description: Propose a new capability for GuardiaBox.
+labels: ["feature", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Non-trivial features should eventually have a `docs/specs/<NNN-feature>/`
+        folder (Spec-Driven Development). This issue is a good place to start
+        the conversation; a spec will be drafted once scope is agreed.
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation
+      description: What user problem does this solve? Why now?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behaviour
+      description: Describe it from a user's point of view.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Options you thought about but didn't propose, and why.
+  - type: textarea
+    id: impact
+    attributes:
+      label: Expected impact
+      description: Security / UX / performance / complexity trade-offs.

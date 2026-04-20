@@ -1,0 +1,66 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "GuardiaBox",
+  "version": "0.1.0",
+  "identifier": "io.guardiabox.app",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "beforeBuildCommand": "pnpm build",
+    "devUrl": "http://localhost:1420",
+    "frontendDist": "../frontend/dist"
+  },
+  "app": {
+    "security": {
+      "csp": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost http://127.0.0.1:* ws://127.0.0.1:*; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';",
+      "capabilities": ["default"]
+    },
+    "windows": [
+      {
+        "title": "GuardiaBox",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 960,
+        "minHeight": 640,
+        "decorations": false,
+        "transparent": true,
+        "center": true,
+        "resizable": true,
+        "fullscreen": false,
+        "dragDropEnabled": true,
+        "acceptFirstMouse": false,
+        "skipTaskbar": false,
+        "theme": "Dark"
+      }
+    ]
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis", "msi"],
+    "category": "Utility",
+    "copyright": "Copyright (c) 2026 Sacha Marlov",
+    "shortDescription": "Local secure vault",
+    "longDescription": "GuardiaBox is a local-first secure vault to encrypt, decrypt, and share files offline.",
+    "homepage": "https://github.com/sachamarlov/crypto-sidecar",
+    "publisher": "Sacha Marlov",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "resources": [],
+    "externalBin": ["binaries/guardiabox-sidecar"],
+    "windows": {
+      "wix": {
+        "language": ["en-US", "fr-FR"]
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "active": false,
+      "endpoints": []
+    }
+  }
+}

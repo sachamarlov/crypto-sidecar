@@ -1,0 +1,177 @@
+# GuardiaBox
+
+> Coffre-fort numérique sécurisé local — chiffrement, partage et stockage sans
+> compromis, conçu pour ne jamais faire confiance à un serveur distant.
+
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![Tauri 2](https://img.shields.io/badge/Tauri-2.x-orange.svg)](https://tauri.app/)
+[![Code style: ruff](https://img.shields.io/badge/code_style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
+
+**Statut** : 🚧 En développement actif (avril 2026 — projet académique GCS2 / DevSecOps).
+
+---
+
+## Présentation
+
+**GuardiaBox** est une application de bureau permettant de chiffrer, déchiffrer,
+stocker et partager des fichiers ou des messages de manière sécurisée. Tout
+fonctionne **localement** sur votre machine : aucune donnée ne quitte le poste,
+aucune dépendance à un service cloud, aucun compte distant à créer.
+
+L'architecture repose sur les bonnes pratiques cryptographiques modernes 2026 :
+
+- **AES-GCM** pour le chiffrement authentifié (NIST SP 800-38D).
+- **PBKDF2-HMAC-SHA256** (≥ 600 000 itérations, OWASP FIPS-140) ou
+  **Argon2id** (m=64 MiB, t=3, p=1) pour la dérivation de clé.
+- **RSA-OAEP** dans un cryptosystème hybride pour le partage entre utilisateurs.
+- **SQLCipher** pour le chiffrement de la base SQLite locale au repos.
+- **Cryptographic erase** + overwrite multi-passes pour la suppression sécurisée
+  (NIST SP 800-88r2).
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                guardiabox.exe (≈ 15 MB, Windows)                │
+│                                                                 │
+│  ┌──────────────────────┐      ┌────────────────────────────┐   │
+│  │  Tauri 2 shell (Rust)│      │  Frontend bundle (Vite/    │   │
+│  │  • WebView2 native   │◄────►│  React 19/shadcn/Framer)   │   │
+│  │  • Frameless window  │ IPC  │  • UI moderne 60fps        │   │
+│  │  • Tray + shortcuts  │      │  • Glassmorphism + WebGL   │   │
+│  └──────────┬───────────┘      └────────────────────────────┘   │
+│             │                                                   │
+│             │ spawn + HTTP loopback (127.0.0.1:random_port)     │
+│             ▼                                                   │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │  Python sidecar (FastAPI, bundled by PyInstaller)        │   │
+│  │  • cryptography, argon2-cffi, zxcvbn-python              │   │
+│  │  • SQLAlchemy 2.0 + SQLCipher                            │   │
+│  │  • Hexagonal architecture: core ← adapters               │   │
+│  └──────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+Trois interfaces utilisateur partagent le même cœur Python :
+- **CLI** (Typer) — pour les scripts et l'automation.
+- **TUI** (Textual) — pour une expérience console riche.
+- **GUI moderne** (Tauri + React + shadcn) — pour la démo grand écran.
+
+## Fonctionnalités
+
+### Version livrée (CDC)
+- ✅ Chiffrer / déchiffrer un fichier ou un message (AES-GCM + PBKDF2/Argon2id)
+- ✅ Format conteneur `.crypt` versionné, magic header, intégrité GCM
+- ✅ Multi-utilisateurs locaux (SQLCipher)
+- ✅ Historique des opérations (audit log hash-chained)
+- ✅ Partage entre utilisateurs locaux (RSA-OAEP cryptosystème hybride)
+- ✅ Suppression sécurisée (overwrite multi-passes + cryptographic erase)
+- ✅ Validation entrées (zxcvbn, anti path-traversal)
+- ✅ Anti brute-force (backoff exponentiel + lockout)
+
+### Roadmap post-livraison
+- 🔄 Authentification matérielle (YubiKey, Windows Hello)
+- 🔄 2FA TOTP / WebAuthn
+- 🔄 Sync entre instances locales via fichier `.gbox-share` exportable
+
+## Stack technique
+
+| Couche             | Technologies                                                            |
+|--------------------|-------------------------------------------------------------------------|
+| Frontend GUI       | Tauri 2, React 19, TypeScript, Vite, Tailwind v4, shadcn/ui, Framer Motion |
+| Sidecar backend    | Python 3.12+, FastAPI, Pydantic v2, uvicorn, SQLAlchemy 2 async         |
+| Cryptographie      | `cryptography` (pyca), `argon2-cffi`, SQLCipher                         |
+| Persistence        | SQLite (chiffrée via SQLCipher), Alembic migrations                     |
+| CLI                | Typer + Rich                                                            |
+| TUI                | Textual                                                                 |
+| Tests              | pytest, hypothesis (property-based), pytest-cov, pytest-asyncio         |
+| Qualité            | ruff (lint+format), ty (types), bandit (sécurité), pre-commit           |
+| Build & packaging  | uv (Python deps), pnpm (Node deps), PyInstaller (sidecar), Tauri build  |
+| CI/CD              | GitHub Actions (lint, tests, security scan, build, release)             |
+
+## Démarrage rapide
+
+### Prérequis
+- Python ≥ 3.12
+- Node.js ≥ 22 + pnpm ≥ 10
+- Rust toolchain (pour Tauri) : `rustup`
+- uv : `pip install uv` ou `curl -LsSf https://astral.sh/uv/install.sh | sh`
+
+### Installation
+```bash
+git clone https://github.com/sachamarlov/crypto-sidecar.git
+cd crypto-sidecar
+uv sync
+pnpm --dir src/guardiabox/ui/tauri/frontend install
+```
+
+### Lancement en mode développement
+```bash
+# CLI
+uv run guardiabox --help
+
+# TUI
+uv run guardiabox-tui
+
+# GUI Tauri (dev mode avec HMR)
+pnpm --dir src/guardiabox/ui/tauri/frontend tauri dev
+```
+
+### Tests
+```bash
+uv run pytest
+uv run pytest --cov=guardiabox --cov-report=html
+```
+
+### Build production
+```bash
+# Sidecar Python (PyInstaller bundle)
+uv run python scripts/build_sidecar.py
+
+# GUI complète (.exe Windows)
+pnpm --dir src/guardiabox/ui/tauri/frontend tauri build
+```
+
+## Documentation
+
+| Document                                    | Contenu                                                |
+|---------------------------------------------|--------------------------------------------------------|
+| [docs/SPEC.md](docs/SPEC.md)                | Vision produit et critères d'acceptation               |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)| Architecture technique détaillée                       |
+| [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md)| Modèle de menace STRIDE et mitigations                 |
+| [docs/CRYPTO_DECISIONS.md](docs/CRYPTO_DECISIONS.md) | Justifications cryptographiques (NIST/OWASP/RFC) |
+| [docs/CONVENTIONS.md](docs/CONVENTIONS.md)  | Règles de code (SOLID, DRY, naming, layering)          |
+| [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)  | Guide développeur (setup, debug, troubleshooting)      |
+| [docs/adr/](docs/adr/)                      | Architecture Decision Records (MADR v4)                |
+| [docs/specs/](docs/specs/)                  | Spec-Driven Development par fonctionnalité             |
+| [docs/cahier-des-charges/](docs/cahier-des-charges/) | Cahier des charges officiel GCS2              |
+
+## Sécurité
+
+GuardiaBox est conçu avec un **modèle zéro-confiance** : aucune donnée en clair
+ne doit jamais quitter la mémoire protégée du processus, et aucun secret n'est
+stocké en clair sur disque.
+
+Pour signaler une vulnérabilité, lire [SECURITY.md](SECURITY.md).
+
+Le modèle de menace complet est documenté dans [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md).
+
+## Contribuer
+
+Voir [CONTRIBUTING.md](CONTRIBUTING.md) pour les règles de contribution
+(branching, conventional commits, code review).
+
+## Licence
+
+Distribué sous licence Apache 2.0 — voir [LICENSE](LICENSE).
+
+## Crédits
+
+Projet académique réalisé dans le cadre de l'UE 7 « DevSecOps » du Bachelor 2 de
+[Gaming Campus](https://gamingcampus.fr/), promotion 2025-2026.
+
+Architecture, code et documentation : Sacha Marlov, avec l'assistance de
+**Claude Code (Opus 4.7, contexte 1M)** d'Anthropic en mode autonomie.
+
+Encadrant : Sylvain Labasse — [syllab.com](https://syllab.com).
