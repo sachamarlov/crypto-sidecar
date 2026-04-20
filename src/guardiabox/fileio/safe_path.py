@@ -10,7 +10,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from guardiabox.core.exceptions import PathTraversalError, SymlinkEscapeError
+# Imported for documentation; the implementation will raise these.
+from guardiabox.core.exceptions import (
+    PathTraversalError as PathTraversalError,
+    SymlinkEscapeError as SymlinkEscapeError,
+)
 
 
 def resolve_within(candidate: Path, root: Path, *, allow_symlinks: bool = False) -> Path:

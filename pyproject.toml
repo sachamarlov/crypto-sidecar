@@ -244,6 +244,7 @@ select  = [
 ]
 ignore = [
     "D100",   # Missing docstring in public module — handled module-by-module
+    "D102",   # Missing docstring in public method — class-level docstrings cover stubs
     "D104",   # Missing docstring in public package
     "D105",   # Missing docstring in magic methods
     "D107",   # Missing docstring in __init__ (covered by class docstring)
@@ -259,6 +260,12 @@ ignore = [
     "EM102",  # Exception must not use an f-string literal
     "FBT001", # Boolean positional arg — acceptable for small internal APIs
     "FBT002", # Boolean default positional — same rationale
+    "S105",   # Hardcoded password — too many false positives on suffixes / IDs
+    "S106",   # Same
+    "S107",   # Same
+    "TC001",  # Move first-party import to TYPE_CHECKING — runtime usage is common
+    "TC002",  # Same for third-party
+    "TC003",  # Same for stdlib
 ]
 unfixable = [
     "ERA001", # commented code — never auto-remove, always review

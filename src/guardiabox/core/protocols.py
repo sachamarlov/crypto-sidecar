@@ -1,4 +1,4 @@
-"""Structural protocols for pluggable algorithms.
+r"""Structural protocols for pluggable algorithms.
 
 Defining algorithms as :class:`typing.Protocol` decouples
 :mod:`guardiabox.core` from any concrete implementation, satisfies the
@@ -6,9 +6,9 @@ Dependency Inversion principle, and lets us register new KDFs / ciphers /
 asymmetric primitives without touching the call sites.
 
 Note: factory operations (``decode_params``) are **not** part of the protocols.
-They live as :class:`classmethod`\\s on each concrete implementation so that the
+They live as :class:`classmethod`\s on each concrete implementation so that the
 return type can be :class:`typing.Self`, which is impossible to express
-through a Protocol's structural subtyping without `Self` covariance issues.
+through a Protocol's structural subtyping without ``Self`` covariance issues.
 """
 
 from __future__ import annotations
