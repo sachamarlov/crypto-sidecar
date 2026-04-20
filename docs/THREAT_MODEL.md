@@ -104,7 +104,26 @@
   *Mitigation:* `uv.lock` + `pnpm-lock.yaml` pinned; CI runs `pip-audit` +
   `npm audit` on every PR; Renovate bot keeps deps fresh.
 
-## 6. Cross-references
+## 6. Database at-rest exposure (Win/Mac without SQLCipher)
+
+ADR-0011 documents the cross-platform constraint that prevents SQLCipher
+from being a single-build solution. Without SQLCipher, the metadata
+database (filenames, audit log, RSA public keys, KDF parameters) would
+be readable by an attacker who copies the file from disk.
+
+| State | Mitigation |
+|-------|------------|
+| Linux (default) | SQLCipher (AES-256-CBC + HMAC-SHA-512 per page) auto-installed via `sqlcipher3-binary`. Full DB encrypted. |
+| Win/Mac (default) | **Column-level AES-GCM** at the repository boundary (see ADR-0011 + spec 002). Encrypts every sensitive column with a key derived from the vault administrator password; deterministic HMAC indices for equality lookups. |
+| Win/Mac (opt-in `--extra sqlcipher-source`) | SQLCipher built from source. Equivalent to Linux baseline. |
+
+**Recommended user mitigation regardless of platform**: enable OS-level
+full-disk encryption (BitLocker / FileVault / dm-crypt). This protects
+against offline attacks (stolen laptop, copied backup) where neither
+SQLCipher nor column-level encryption can defend on their own (e.g.,
+because the attacker also captures the running process memory).
+
+## 7. Cross-references
 
 * Cryptographic parameter justifications: [`CRYPTO_DECISIONS.md`](CRYPTO_DECISIONS.md)
 * Architectural choices: [`docs/adr/`](adr/)

@@ -1,8 +1,19 @@
-"""SQLAlchemy async engine + session factory, backed by SQLCipher.
+"""SQLAlchemy async engine + session factory.
 
-The encryption key for SQLCipher is derived from the *vault administrator*
-password (a separate keystore, distinct from per-user keystores) via PBKDF2 +
-SQLCipher's PRAGMA key, so the database file is unreadable at rest without it.
+The engine is selected at runtime (cf. ADR-0011):
+
+* If :mod:`sqlcipher3` is importable (Linux by default, Win/Mac via the
+  ``sqlcipher-source`` extra), the engine is backed by **SQLCipher**: every
+  page is encrypted via AES-256-CBC + HMAC-SHA-512, key derived from the
+  vault administrator password.
+* Otherwise, the engine is plain SQLite and **column-level AES-GCM
+  encryption** (see :mod:`guardiabox.core.crypto`) is applied at the
+  repository boundary so filenames and audit metadata stay encrypted at
+  rest regardless of platform.
+
+Implementation deliberately deferred — see
+``docs/specs/000-multi-user/plan.md`` for SQLCipher path,
+``docs/specs/002-decrypt-file/plan.md`` for the column-level helpers.
 """
 
 from __future__ import annotations

@@ -58,12 +58,18 @@ dependencies = [
     "pydantic-settings>=2.7.0",
     "httpx>=0.28.0",
     # --- Persistence ---
-    # Note: SQLCipher (ADR-0003) ships as an optional extra because no
-    # cross-platform pre-built wheel exists today (linux only on PyPI).
-    # Install via `uv sync --extra sqlcipher` once your platform is supported.
+    # SQLCipher is required for at-rest database encryption (ADR-0003).
+    # Linux: pre-built wheel via sqlcipher3-binary.
+    # Windows / macOS: install system sqlcipher first, then build sqlcipher3
+    # from source -- see docs/DEVELOPMENT.md.  ADR-0011 supersedes 0003 and
+    # documents the column-level AES-GCM fallback we ship for platforms
+    # where the native dep is unavailable, so the security floor is
+    # preserved end-to-end (filenames + audit log are encrypted at rest
+    # regardless of which storage backend is in use).
     "sqlalchemy[asyncio]>=2.0.36",
     "alembic>=1.14.0",
     "aiosqlite>=0.20.0",
+    "sqlcipher3-binary>=0.5.4 ; sys_platform == 'linux'",
     # --- CLI / TUI ---
     "typer>=0.15.0",
     "textual>=0.89.0",
@@ -106,13 +112,14 @@ test = [
     "respx>=0.21.1",
 ]
 
-# SQLCipher pre-built wheels exist for Linux x86_64 only (PyPI 0.5.x).
-# Windows and macOS users must build from source after installing the system
-# library (Windows: vcpkg install sqlcipher; macOS: brew install sqlcipher),
-# then: uv add sqlcipher3 --no-binary sqlcipher3
-# Tracking issue + cross-platform plan: ADR-0003 + future ADR.
-sqlcipher = [
-    "sqlcipher3-binary>=0.5.4 ; sys_platform == 'linux'",
+# Source-built SQLCipher binding for Windows / macOS (where no PyPI wheel
+# exists). Requires the SQLCipher system library installed first:
+#   Windows : vcpkg install sqlcipher
+#   macOS   : brew install sqlcipher
+# Then:    uv sync --extra sqlcipher-source
+# See ADR-0011 for the cross-platform strategy.
+sqlcipher-source = [
+    "sqlcipher3>=0.5.4 ; sys_platform != 'linux'",
 ]
 
 build = [
@@ -126,7 +133,7 @@ docs = [
 ]
 
 all = [
-    "guardiabox[dev,test,build,docs]",
+    "guardiabox[dev,test,build,docs,sqlcipher-source]",
 ]
 
 [project.urls]
