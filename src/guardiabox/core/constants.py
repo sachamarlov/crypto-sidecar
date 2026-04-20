@@ -48,4 +48,4 @@ DEFAULT_CHUNK_BYTES: Final[int] = 64 * 1024
 
 ENCRYPTED_SUFFIX: Final[str] = ".crypt"
 DECRYPTED_SUFFIX: Final[str] = ".decrypt"
-SHARE_TOKEN_SUFFIX: Final[str] = ".gbox-share"
+SHARE_TOKEN_SUFFIX: Final[str] = ".gbox-share"  # noqa: S105 — file extension, not a credential value

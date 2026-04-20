@@ -35,8 +35,5 @@ jobs:
       - uses: github/codeql-action/autobuild@v3
 
       - uses: github/codeql-action/analyze@v3
-        # `continue-on-error` lets the workflow stay green until
-        # Code Scanning is enabled manually in Settings → Code security.
-        continue-on-error: true
         with:
           category: "/language:${{ matrix.language }}"

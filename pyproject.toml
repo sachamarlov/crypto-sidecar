@@ -194,14 +194,10 @@ required-version  = ">=0.5.0"
 [tool.ruff]
 line-length     = 100
 target-version  = "py312"
-src             = ["src", "tests"]
+src             = ["src", "tests", "scripts"]
 extend-exclude  = [
     "src/guardiabox/ui/tauri/frontend",
     "src/guardiabox/ui/tauri/src-tauri/target",
-    # Helper scripts live outside the package; they are not subject to the
-    # full ruff rule set (no docstring policy, no import sorting on dynamic
-    # imports, no INP001 since they are intentionally module-less).
-    "scripts/",
 ]
 
 [tool.ruff.lint]
@@ -250,33 +246,45 @@ select  = [
     "RUF",  # ruff-specific
 ]
 ignore = [
-    "D100",   # Missing docstring in public module — handled module-by-module
-    "D102",   # Missing docstring in public method — class-level docstrings cover stubs
-    "D104",   # Missing docstring in public package
-    "D105",   # Missing docstring in magic methods
-    "D107",   # Missing docstring in __init__ (covered by class docstring)
-    "D203",   # 1 blank line before class docstring (conflicts with D211)
-    "D213",   # Multi-line docstring summary on second line (conflicts with D212)
-    "ANN401", # Allow `Any` when explicitly justified
-    "ISC001", # Conflicts with ruff format
-    "COM812", # Conflicts with ruff format
-    "PLR2004",# Magic numbers OK in tests
-    "PLR0913",# Too many arguments — let humans judge
-    "TRY003", # Avoid specifying long messages outside exception class
-    "EM101",  # Exception must not use a string literal (TRY003 covers it)
-    "EM102",  # Exception must not use an f-string literal
-    "FBT001", # Boolean positional arg — acceptable for small internal APIs
-    "FBT002", # Boolean default positional — same rationale
-    "S105",   # Hardcoded password — too many false positives on suffixes / IDs
-    "S106",   # Same
-    "S107",   # Same
-    "TC001",  # Move first-party import to TYPE_CHECKING — runtime usage is common
-    "TC002",  # Same for third-party
-    "TC003",  # Same for stdlib
-    "ARG001", # Typer / Click callbacks require `ctx` in the signature
-    "PLC0415",# Lazy imports are intentional (CLI startup time)
-    "PLR6301",# Framework-mandated instance methods (Textual compose, etc.)
-    "F401",   # Stub-phase re-exports; tightened per-module once features land
+    # Documentation style — pragmatic defaults
+    "D100",    # Missing docstring in public module — handled module-by-module
+    "D102",    # Missing docstring in public method — class docstrings cover stubs
+    "D104",    # Missing docstring in public package
+    "D105",    # Missing docstring in magic methods
+    "D107",    # Missing docstring in __init__ (class docstring covers it)
+    "D203",    # Conflicts with D211
+    "D213",    # Conflicts with D212
+
+    # Type annotation policy
+    "ANN401",  # Allow `Any` when explicitly justified
+
+    # Format conflicts (must stay; documented by ruff itself)
+    "ISC001",  # Conflicts with ruff format
+    "COM812",  # Conflicts with ruff format
+
+    # Pylint pragmatics
+    "PLR2004", # Magic numbers OK in tests
+    "PLR0913", # Argument count — judgement call
+    "PLR6301", # Framework-mandated instance methods (Textual `compose`, ...)
+
+    # Try / Except messages — TRY003 covers them at the source
+    "TRY003",
+    "EM101",
+    "EM102",
+
+    # Boolean positional args — OK for small internal APIs
+    "FBT001",
+    "FBT002",
+
+    # TYPE_CHECKING optimisation — kept off for the bootstrap; will be enforced
+    # per-feature once we have a stable type-import surface
+    "TC001",
+    "TC002",
+    "TC003",
+
+    # CLI ergonomics
+    "ARG001",  # Typer / Click callbacks require `ctx` even unused
+    "PLC0415", # Lazy imports inside CLI launchers (cold-start performance)
 ]
 unfixable = [
     "ERA001", # commented code — never auto-remove, always review
@@ -297,6 +305,12 @@ unfixable = [
     "B008",   # FastAPI Depends() in defaults is the convention
 ]
 "src/guardiabox/__init__.py" = ["D104"]
+# Helper scripts: importable as modules but not packaged with guardiabox.
+"scripts/*.py" = [
+    "INP001",  # not part of an implicit package
+    "I001",    # local import-sort rules less strict
+    "T201",    # print() used as user-facing CLI output
+]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -353,9 +367,10 @@ addopts = [
     "--cov-report=term-missing:skip-covered",
     "--cov-report=html",
     "--cov-report=xml",
-    # Coverage floor stays at 0 until the first feature spec (001-encrypt-file)
-    # ships its implementation. Raised to 80 afterwards.
-    "--cov-fail-under=0",
+    # 80 % is the binding contract from CONVENTIONS.md. The smoke-test suite
+    # already crosses 90 % on import alone — implementation work must keep
+    # the floor above 80 %, never below.
+    "--cov-fail-under=80",
 ]
 testpaths    = ["tests", "src/guardiabox/tests"]
 python_files = ["test_*.py", "*_test.py"]

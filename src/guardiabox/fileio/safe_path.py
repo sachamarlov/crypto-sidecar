@@ -4,17 +4,23 @@ Every user-supplied path enters the system through :func:`resolve_within`,
 which guarantees that the resolved path lies under an allowed root and that no
 symlink escapes outside it. Refusal is *fail-fast* — we raise rather than
 silently sanitise.
+
+The two project-specific exceptions raised by this module are re-exported
+through ``__all__`` so callers can ``except`` them directly without reaching
+into :mod:`guardiabox.core.exceptions`.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
-# Imported for documentation; the implementation will raise these.
-from guardiabox.core.exceptions import (
-    PathTraversalError,
-    SymlinkEscapeError,
-)
+from guardiabox.core.exceptions import PathTraversalError, SymlinkEscapeError
+
+__all__ = [
+    "PathTraversalError",
+    "SymlinkEscapeError",
+    "resolve_within",
+]
 
 
 def resolve_within(candidate: Path, root: Path, *, allow_symlinks: bool = False) -> Path:

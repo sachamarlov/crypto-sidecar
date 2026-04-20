@@ -53,6 +53,7 @@ ACCENT_RGBA = (124, 140, 240, 255)
 
 
 def _png_chunk(tag: bytes, data: bytes) -> bytes:
+    """Frame ``data`` as a single PNG chunk under ``tag`` (length + CRC)."""
     return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data))
 
 
@@ -65,8 +66,12 @@ def make_png(width: int, height: int, rgba: tuple[int, int, int, int] = ACCENT_R
     for _ in range(height):
         raw += b"\x00" + pixel * width  # filter byte 0 (None) + scanline
     idat = zlib.compress(raw, level=9)
-    iend = b""
-    return signature + _png_chunk(b"IHDR", ihdr) + _png_chunk(b"IDAT", idat) + _png_chunk(b"IEND", iend)
+    return (
+        signature
+        + _png_chunk(b"IHDR", ihdr)
+        + _png_chunk(b"IDAT", idat)
+        + _png_chunk(b"IEND", b"")
+    )
 
 
 def make_ico(sizes: tuple[int, ...] = (16, 32, 48, 64, 128, 256)) -> bytes:
@@ -94,11 +99,11 @@ def make_icns(size: int = 512) -> bytes:
     png = make_png(size, size)
     icns_type = b"ic09"  # 512x512
     icon_chunk = icns_type + struct.pack(">I", 8 + len(png)) + png
-    icns = b"icns" + struct.pack(">I", 8 + len(icon_chunk)) + icon_chunk
-    return icns
+    return b"icns" + struct.pack(">I", 8 + len(icon_chunk)) + icon_chunk
 
 
 def main() -> int:
+    """Write all required Tauri icon placeholders to the icons directory."""
     ICONS_DIR.mkdir(parents=True, exist_ok=True)
 
     sizes_png: dict[str, int] = {
@@ -129,7 +134,7 @@ def main() -> int:
     (ICONS_DIR / "icon.icns").write_bytes(make_icns())
     written.append("icon.icns")
 
-    sys.stdout.write("Generated placeholder icons in {}:\n".format(ICONS_DIR))
+    sys.stdout.write(f"Generated placeholder icons in {ICONS_DIR}:\n")
     for name in written:
         sys.stdout.write(f"  - {name}\n")
     sys.stdout.write(
