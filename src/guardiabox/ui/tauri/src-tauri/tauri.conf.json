@@ -50,6 +50,8 @@
       "icons/icon.ico"
     ],
     "resources": [],
+    "_externalBin_comment": "The line below is required for production bundles so Tauri ships the Python sidecar alongside the .exe. Comment it out (or generate the binary first via `uv run python scripts/build_sidecar.py`) before running `tauri build` for the first time.",
+    "externalBin": ["binaries/guardiabox-sidecar"],
     "windows": {
       "wix": {
         "language": ["en-US", "fr-FR"]
