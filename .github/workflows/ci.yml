@@ -57,7 +57,13 @@ jobs:
         run: uv run bandit -c pyproject.toml -r src -q
 
       - name: Dependency vulnerability audit (pip-audit)
-        run: uv run pip-audit --strict --progress-spinner=off
+        # `--skip-editable` excludes our own package (installed in editable
+        # mode by `uv sync`, no PyPI presence). `--strict` is intentionally
+        # dropped because it transforms the editable-skip into an error;
+        # known-vulnerability detection on external deps still returns
+        # exit code 1 without it -- only the "could not audit my own source"
+        # false positive is silenced. See CLAUDE.md §9bis.
+        run: uv run pip-audit --skip-editable --progress-spinner=off
 
       - name: Secret scan baseline (detect-secrets)
         # `git ls-files -z | xargs -0` instead of `$(git ls-files)` so we
