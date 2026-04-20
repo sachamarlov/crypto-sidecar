@@ -131,6 +131,27 @@ uv run pre-commit run --all-files
   shift, crypto parameter change, breaking API change). Any destructive Git op.
   Any change to security defaults. Anything outside the agreed scope.
 
+## 9bis. CI red is acceptable. Lowering the gate is not.
+
+- **CI may be red on stub code.** Until a feature spec lands, the strict
+  ruff / mypy / coverage / bandit gates can legitimately fail. That is
+  signal, not noise — it lists the work to do.
+- **Never lower a quality gate to make CI green.** Forbidden moves include:
+  - Dropping `--cov-fail-under` below the agreed floor.
+  - Adding rules to ruff `ignore` to silence warnings on real bugs.
+  - Adding `continue-on-error: true` to a security-relevant job.
+  - Removing a step from the workflow because it currently fails.
+  - Replacing a granular permission set with `<plugin>:default` bundles.
+  - Demoting a security-relevant dependency to optional to bypass an
+    install error.
+- If a gate is genuinely too strict for the bootstrap phase (e.g.
+  `D102` on stubs), document the relaxation in CONVENTIONS.md and add
+  a TODO with a target date to re-tighten it.
+- **Always run the local toolchain before push**:
+  `uv run pre-commit run --all-files && uv run pytest && uv run mypy src`.
+- **Always document a known regression with an ADR of supersession**
+  if it changes a previously-accepted invariant. No silent regressions.
+
 ## 10. Pointers — where to read more
 
 | Topic                            | Read                                |
@@ -157,6 +178,12 @@ uv run pre-commit run --all-files
 - ❌ Adding a dependency without a justifying ADR.
 - ❌ Using `print()` for logs (use `structlog` / `loguru`).
 - ❌ Mocking the database in integration tests (use a real SQLite fixture).
+- ❌ Lowering a quality gate to "make CI green" (cf. §9bis).
+- ❌ Demoting a security-relevant dependency to optional to silence an
+  install error (cf. ADR-0011 for the principle).
+- ❌ Replacing granular Tauri capabilities with `<plugin>:default`
+  bundles to "make build pass".
+- ❌ Adding `continue-on-error: true` to a security workflow.
 
 ---
 
