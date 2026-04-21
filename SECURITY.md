@@ -6,7 +6,7 @@ GuardiaBox is in early development (pre-1.0). Only the `main` branch receives
 security fixes. There is no support window for older snapshots.
 
 | Version | Supported |
-|---------|-----------|
+| ------- | --------- |
 | `main`  | ✅        |
 | < 1.0   | ❌        |
 

@@ -1,8 +1,8 @@
 # 002 — Decrypt a `.crypt` file
 
-* Status: draft (skeleton)
-* Tracks: F-2, F-4 from `docs/SPEC.md`
-* Depends on: spec 001 (the container format must already be implemented).
+- Status: draft (skeleton)
+- Tracks: F-2, F-4 from `docs/SPEC.md`
+- Depends on: spec 001 (the container format must already be implemented).
 
 ## Behaviour
 
@@ -37,15 +37,15 @@ Scenario: Tampered ciphertext is detected
 
 ## Failure-mode anti-oracle
 
-The same generic error message and exit code is returned for *both* wrong
+The same generic error message and exit code is returned for _both_ wrong
 password and tampered ciphertext, so an attacker cannot distinguish the two
 states by the system's response. (Internally the error class differs, for
 audit logging.)
 
 ## Out of scope (future)
 
-* Bulk decrypt of many files — `005-bulk-encrypt` covers the same surface.
-* Streaming decryption to a downstream pipe (planned for v0.2).
+- Bulk decrypt of many files — `005-bulk-encrypt` covers the same surface.
+- Streaming decryption to a downstream pipe (planned for v0.2).
 
 ## Plan / tasks
 

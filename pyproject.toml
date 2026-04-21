@@ -296,6 +296,8 @@ unfixable = [
     "S101",   # assert OK in tests
     "S105",   # hardcoded password OK in tests
     "S106",   # hardcoded password OK in tests
+    "S404",   # subprocess import OK in integration tests
+    "S603",   # subprocess argument content validated at call site
     "ANN201", # missing return type OK in tests
     "D",      # docstrings optional in tests
     "PLR2004",# magic numbers OK in tests
@@ -303,6 +305,10 @@ unfixable = [
 ]
 "src/guardiabox/ui/tauri/sidecar/**/*.py" = [
     "B008",   # FastAPI Depends() in defaults is the convention
+]
+"src/guardiabox/ui/cli/commands/**/*.py" = [
+    "B008",   # Typer Argument()/Option() in defaults is the convention
+    "PLR0913",# CLI commands accumulate options by design
 ]
 "src/guardiabox/__init__.py" = ["D104"]
 # Helper scripts: importable as modules but not packaged with guardiabox.

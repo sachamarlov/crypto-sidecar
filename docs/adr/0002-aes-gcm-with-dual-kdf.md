@@ -1,9 +1,9 @@
 # 0002 — AES-GCM with dual KDF (PBKDF2 default, Argon2id opt-in)
 
-* Status: accepted
-* Date: 2026-04-20
-* Deciders: @sachamarlov, Claude Opus 4.7
-* Tags: [crypto, format]
+- Status: accepted
+- Date: 2026-04-20
+- Deciders: @sachamarlov, Claude Opus 4.7
+- Tags: [crypto, format]
 
 ## Context and problem statement
 
@@ -16,11 +16,11 @@ to security-aware users.
 
 ## Considered options
 
-* **A. PBKDF2 only** (strict CDC). Simple, but leaves the user defenceless
+- **A. PBKDF2 only** (strict CDC). Simple, but leaves the user defenceless
   against modern GPU farms.
-* **B. PBKDF2 default + Argon2id opt-in**, both selectable via flag, encoded
+- **B. PBKDF2 default + Argon2id opt-in**, both selectable via flag, encoded
   in the container header.
-* **C. Argon2id default + PBKDF2 fallback** for FIPS scenarios. Risks the
+- **C. Argon2id default + PBKDF2 fallback** for FIPS scenarios. Risks the
   evaluator concluding the CDC's PBKDF2 instruction was ignored.
 
 ## Decision
@@ -31,26 +31,26 @@ per file, so users can migrate file-by-file.
 
 Mandatory parameter floors enforced in `core/constants.py`:
 
-* PBKDF2-HMAC-SHA256 ≥ 600 000 iterations (OWASP FIPS-140).
-* Argon2id m ≥ 64 MiB, t ≥ 3, p ≥ 1 (OWASP 2026).
+- PBKDF2-HMAC-SHA256 ≥ 600 000 iterations (OWASP FIPS-140).
+- Argon2id m ≥ 64 MiB, t ≥ 3, p ≥ 1 (OWASP 2026).
 
 ## Consequences
 
 **Positive**
 
-* Strict CDC compliance (PBKDF2 is the default).
-* Future-proof — the file format already accommodates new KDFs by allocating
+- Strict CDC compliance (PBKDF2 is the default).
+- Future-proof — the file format already accommodates new KDFs by allocating
   new `kdf_id` bytes.
-* Per-file migration path: re-encrypt with `--kdf argon2id` to upgrade.
+- Per-file migration path: re-encrypt with `--kdf argon2id` to upgrade.
 
 **Negative**
 
-* Slight container complexity (one byte + variable-length params blob).
-* Dual implementation must be tested for both algorithms (mitigated by
+- Slight container complexity (one byte + variable-length params blob).
+- Dual implementation must be tested for both algorithms (mitigated by
   property-based tests covering both branches).
 
 ## References
 
-* OWASP Password Storage CS — https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html
-* RFC 9106 (Argon2) — https://www.rfc-editor.org/rfc/rfc9106
-* NIST SP 800-132 (PBKDF2) — https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-132.pdf
+- OWASP Password Storage CS — https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html
+- RFC 9106 (Argon2) — https://www.rfc-editor.org/rfc/rfc9106
+- NIST SP 800-132 (PBKDF2) — https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-132.pdf

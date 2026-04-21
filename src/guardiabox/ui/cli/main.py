@@ -4,7 +4,8 @@ The CLI is the canonical interface required by the academic brief (CDC):
 ``encrypt`` / ``decrypt`` / ``quit`` are reachable from a console menu, but
 each operation is also addressable as a top-level command for scripting.
 
-Implementation deliberately deferred — see ``docs/specs/000-cli/plan.md``.
+Subcommand modules import :data:`app` from here, so they are imported at the
+bottom of the file to avoid a circular dependency.
 """
 
 from __future__ import annotations
@@ -34,8 +35,13 @@ def _root(
         raise typer.Exit
 
 
-# Subcommands are registered from sibling modules to keep this file slim.
-
+# Subcommand modules run their `@app.command` decorators at import time, so
+# importing them here wires them onto `app`. They must appear after `app` is
+# defined above, hence the explicit E402 waiver.
+from guardiabox.ui.cli.commands import (  # noqa: E402
+    decrypt as _decrypt,  # noqa: F401
+    encrypt as _encrypt,  # noqa: F401
+)
 
 if __name__ == "__main__":
     app()

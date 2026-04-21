@@ -1,19 +1,19 @@
 # 004 — Secure deletion of plaintext files
 
-* Status: draft (skeleton)
-* Tracks: F-12 from `docs/SPEC.md`
-* Depends on: spec 001 (encrypt) for the cryptographic-erase variant.
+- Status: draft (skeleton)
+- Tracks: F-12 from `docs/SPEC.md`
+- Depends on: spec 001 (encrypt) for the cryptographic-erase variant.
 
 ## Behaviour
 
 The user invokes `guardiabox secure-delete <PATH> [--method overwrite-dod-3pass
 | --method crypto-erase]`. The default method is auto-detected:
 
-* HDD detected → `overwrite-dod-3pass`
-* SSD detected → `crypto-erase`
+- HDD detected → `overwrite-dod-3pass`
+- SSD detected → `crypto-erase`
 
-For *overwrite*, the file is rewritten three times (zeros, ones, random)
-followed by `unlink`. For *crypto-erase*, the file's data-encryption key is
+For _overwrite_, the file is rewritten three times (zeros, ones, random)
+followed by `unlink`. For _crypto-erase_, the file's data-encryption key is
 zero-filled both in memory and in the keystore, then the ciphertext file is
 unlinked.
 
@@ -41,10 +41,10 @@ Scenario: Refuse to delete outside vault root
 
 ## Documented limitations
 
-* Overwrite is *best effort* on flash media (wear-levelling, overprovisioning
+- Overwrite is _best effort_ on flash media (wear-levelling, overprovisioning
   per NIST SP 800-88r2 §5.2). The CLI prints a warning when the user requests
   `overwrite-*` on a detected SSD.
-* Cryptographic erase relies on the keystore's confidentiality; if the
+- Cryptographic erase relies on the keystore's confidentiality; if the
   keystore is itself compromised, the ciphertext blocks may still be
   recoverable. Mitigation: SQLCipher (ADR-0003).
 
