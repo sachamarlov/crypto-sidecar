@@ -98,6 +98,7 @@ nav:
       - 0009 — Fine-grained PAT: adr/0009-github-fine-grained-pat.md
       - 0010 — Apache 2.0 license: adr/0010-license-apache-2.md
       - 0011 — Cross-platform DB encryption: adr/0011-defer-cross-platform-database-encryption.md
+      - 0012 — PyInstaller now, Nuitka migration: adr/0012-pyinstaller-now-nuitka-migration.md
   - Spécifications fonctionnelles:
       - Plateforme:
           - 000 — Multi-user + persistence (spec): specs/000-multi-user/spec.md
