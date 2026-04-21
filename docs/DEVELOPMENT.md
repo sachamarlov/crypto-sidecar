@@ -2,16 +2,17 @@
 
 ## 1. Prerequisites
 
-| Tool                | Version           | Install                                                    |
-|---------------------|-------------------|------------------------------------------------------------|
-| Python              | ≥ 3.12            | https://www.python.org/downloads/                          |
-| `uv`                | ≥ 0.5             | `pip install uv` *or* `curl -LsSf https://astral.sh/uv/install.sh \| sh` |
-| Node.js             | ≥ 22              | https://nodejs.org/                                         |
-| `pnpm`              | ≥ 10              | `npm install -g pnpm`                                       |
-| Rust toolchain      | latest stable     | `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \| sh` |
-| Visual Studio Build Tools (Windows) | 2022     | https://visualstudio.microsoft.com/visual-cpp-build-tools/ |
-| WebView2 Runtime    | Latest            | Pre-installed on Windows 11                                 |
-| SQLCipher (system)  | optional          | bundled wheel via `guardiabox[sqlcipher]`                   |
+| Tool                                | Version       | Install                                                                                                                      |
+| ----------------------------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Python                              | ≥ 3.12        | https://www.python.org/downloads/                                                                                            |
+| `uv`                                | ≥ 0.5         | `pip install uv` _or_ `curl -LsSf https://astral.sh/uv/install.sh \| sh`                                                     |
+| Node.js                             | ≥ 22          | https://nodejs.org/                                                                                                          |
+| `pnpm`                              | ≥ 10          | `npm install -g pnpm`                                                                                                        |
+| Rust toolchain                      | latest stable | `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \| sh`                                                            |
+| Visual Studio Build Tools (Windows) | 2022          | https://visualstudio.microsoft.com/visual-cpp-build-tools/                                                                   |
+| WebView2 Runtime                    | Latest        | Pre-installed on Windows 11                                                                                                  |
+| SQLCipher (Linux)                   | auto          | Pre-built wheel `sqlcipher3-binary` installed by `uv sync`                                                                   |
+| SQLCipher (Win/Mac)                 | optional      | System library (`vcpkg install sqlcipher` / `brew install sqlcipher`) then `uv sync --extra sqlcipher-source` — see ADR-0011 |
 
 ## 2. First-time setup
 
@@ -134,9 +135,22 @@ The shell finds the sidecar's port + token by reading the line
 
 ### `uv sync` fails on `sqlcipher3-binary`
 
-The bundled wheels are built for CPython 3.12 / Windows-x64. If on macOS,
-install the upstream `sqlcipher` first (`brew install sqlcipher`) and let pip
-build from source: `uv add sqlcipher3 --no-binary sqlcipher3`.
+`sqlcipher3-binary` only ships a Linux x86_64 wheel on PyPI. On Windows
+or macOS:
+
+1. Install the system library first
+   - Windows: `vcpkg install sqlcipher`
+   - macOS: `brew install sqlcipher`
+2. Then install the source binding via the dedicated extra:
+   ```bash
+   uv sync --extra sqlcipher-source
+   ```
+
+If you skip these steps, GuardiaBox still runs — the persistence layer
+falls back to **column-level AES-GCM encryption** of sensitive columns
+(filenames, audit metadata) so the metadata-protection floor is preserved
+on every platform. See [ADR-0011](adr/0011-defer-cross-platform-database-encryption.md)
+for the full strategy.
 
 ### Tauri build fails on Windows with link errors
 
@@ -157,7 +171,7 @@ Re-issue the token with the `actions: write`, `contents: write`, and
 
 ## 7. IDE recommendations
 
-* **VS Code** with the following extensions:
+- **VS Code** with the following extensions:
   - `ms-python.python`, `ms-python.mypy-type-checker`
   - `charliermarsh.ruff`
   - `tamasfe.even-better-toml`
