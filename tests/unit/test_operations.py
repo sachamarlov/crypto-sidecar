@@ -205,3 +205,30 @@ def test_decrypt_default_dest_without_crypt_suffix(tmp_path: Path) -> None:
     dec = decrypt_file(renamed, STRONG_PASSWORD)
     assert dec.name.endswith(".decrypt")
     assert dec.read_bytes() == b"secret"
+
+
+def test_decrypt_message_wrong_password_raises_and_logs(tmp_path: Path) -> None:
+    """Cover the warning-log path on decrypt_message failure."""
+    dest = tmp_path / "msg.crypt"
+    encrypt_message(b"payload", STRONG_PASSWORD, kdf=Pbkdf2Kdf(), dest=dest)
+    with pytest.raises(DecryptionError):
+        decrypt_message(dest, "Another_But_Strong_Password_42!")  # pragma: allowlist secret
+
+
+@pytest.mark.slow
+def test_roundtrip_10_mib(tmp_path: Path) -> None:
+    """Full encrypt + decrypt of a 10 MiB random payload.
+
+    Runs the streaming pipeline across ~160 chunks at DEFAULT_CHUNK_BYTES.
+    Two KDF derivations are expensive but not prohibitive; this test carries
+    the ``slow`` marker so the fast suite stays under 30 s.
+    """
+    import secrets as _secrets
+
+    source = tmp_path / "big.bin"
+    payload = _secrets.token_bytes(10 * 1024 * 1024)
+    source.write_bytes(payload)
+
+    enc = encrypt_file(source, STRONG_PASSWORD, kdf=Pbkdf2Kdf())
+    dec = decrypt_file(enc, STRONG_PASSWORD)
+    assert dec.read_bytes() == payload

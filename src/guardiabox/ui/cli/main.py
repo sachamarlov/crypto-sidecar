@@ -10,9 +10,17 @@ bottom of the file to avoid a circular dependency.
 
 from __future__ import annotations
 
+import os
+
 import typer
 
 from guardiabox import __version__
+from guardiabox.logging import configure as _configure_logging
+
+# Configure structlog once at CLI import so every invocation emits events at
+# a predictable level. WARNING by default keeps the stdout of commands like
+# ``decrypt --message`` clean; ``GUARDIABOX_LOG_LEVEL=DEBUG`` opens the firehose.
+_configure_logging(level=os.environ.get("GUARDIABOX_LOG_LEVEL", "WARNING"))
 
 app = typer.Typer(
     name="guardiabox",
@@ -41,6 +49,7 @@ def _root(
 from guardiabox.ui.cli.commands import (  # noqa: E402
     decrypt as _decrypt,  # noqa: F401
     encrypt as _encrypt,  # noqa: F401
+    inspect as _inspect,  # noqa: F401
 )
 
 if __name__ == "__main__":

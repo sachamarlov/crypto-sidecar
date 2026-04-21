@@ -43,10 +43,14 @@ def configure(level: str = "INFO", *, json: bool = False) -> None:
     """Configure structlog and the stdlib logger compatibility shim."""
     timestamper: Processor = structlog.processors.TimeStamper(fmt="iso", utc=True)
 
+    # ``structlog.stdlib.add_logger_name`` is intentionally omitted: it reads
+    # ``logger.name``, which only exists on stdlib-backed loggers. We use
+    # ``PrintLoggerFactory`` for stderr output, so the processor would crash
+    # on first call. Module context is already available via ``event`` strings
+    # and the optional ``logger=`` bind keyword.
     shared_processors: list[Processor] = [
         structlog.contextvars.merge_contextvars,
         structlog.stdlib.add_log_level,
-        structlog.stdlib.add_logger_name,
         structlog.processors.StackInfoRenderer(),
         structlog.processors.format_exc_info,
         _redact_secrets,

@@ -22,6 +22,7 @@ which protects against chunk truncation.
 from __future__ import annotations
 
 from collections.abc import Iterator
+from dataclasses import dataclass
 from pathlib import Path
 import secrets
 from typing import IO
@@ -43,22 +44,92 @@ from guardiabox.core.container import (
     write_header,
 )
 from guardiabox.core.crypto import AesGcmCipher, chunk_aad, derive_chunk_nonce
-from guardiabox.core.exceptions import CorruptedContainerError
+from guardiabox.core.exceptions import CorruptedContainerError, DecryptionError
 from guardiabox.core.kdf import Argon2idKdf, Pbkdf2Kdf, kdf_for_id
 from guardiabox.fileio.atomic import atomic_writer
 from guardiabox.fileio.safe_path import resolve_within
 from guardiabox.fileio.streaming import iter_chunks
+from guardiabox.logging import get_logger
 from guardiabox.security.password import assert_strong
 
 __all__ = [
     "DEFAULT_KDF",
+    "ContainerInspection",
     "decrypt_file",
     "decrypt_message",
     "encrypt_file",
     "encrypt_message",
+    "inspect_container",
 ]
 
 DEFAULT_KDF: type[Pbkdf2Kdf] = Pbkdf2Kdf
+
+# Structured logger. The project-wide ``_redact_secrets`` processor
+# (cf. ``guardiabox/logging.py``) scrubs any known-sensitive key, but our
+# side of the contract is to never *pass* a secret into a log event in the
+# first place. Every event below carries only sizes, parameter ids, and
+# outcome markers — never plaintext, passwords, keys, nonces, or paths
+# beyond the filename stem.
+_log = get_logger(__name__)
+
+
+@dataclass(frozen=True, slots=True)
+class ContainerInspection:
+    """Header-only view of a ``.crypt`` file, returned by :func:`inspect_container`.
+
+    No plaintext is read or decrypted. All fields are derived from the
+    header bytes and the file size, so inspection is safe to run on an
+    untrusted file without knowing the password.
+    """
+
+    path: Path
+    version: int
+    kdf_id: int
+    kdf_name: str
+    kdf_params_summary: str
+    salt_hex: str
+    base_nonce_hex: str
+    header_size: int
+    ciphertext_size: int
+
+
+def inspect_container(source: Path) -> ContainerInspection:
+    """Read and decode a ``.crypt`` header without decrypting its content.
+
+    Raises:
+        InvalidContainerError: Magic bytes do not match.
+        UnsupportedVersionError: Version byte is unknown.
+        UnknownKdfError: KDF identifier is not implemented.
+        CorruptedContainerError: Fixed-size fields are truncated.
+        WeakKdfParametersError: KDF parameters violate the floor.
+    """
+    source_resolved = source.resolve(strict=True)
+    with source_resolved.open("rb") as fh:
+        header = read_header(fh)
+        header_size = fh.tell()
+        file_size = source_resolved.stat().st_size
+    kdf_impl = kdf_for_id(header.kdf_id, header.kdf_params)
+    if isinstance(kdf_impl, Pbkdf2Kdf):
+        kdf_name = "PBKDF2-HMAC-SHA256"
+        kdf_params_summary = f"iterations={kdf_impl.iterations}"
+    else:
+        kdf_name = "Argon2id"
+        kdf_params_summary = (
+            f"memory_kib={kdf_impl.memory_cost_kib}, "
+            f"time_cost={kdf_impl.time_cost}, "
+            f"parallelism={kdf_impl.parallelism}"
+        )
+    return ContainerInspection(
+        path=source_resolved,
+        version=header.version,
+        kdf_id=header.kdf_id,
+        kdf_name=kdf_name,
+        kdf_params_summary=kdf_params_summary,
+        salt_hex=header.salt.hex(),
+        base_nonce_hex=header.base_nonce.hex(),
+        header_size=header_size,
+        ciphertext_size=file_size - header_size,
+    )
 
 
 def encrypt_file(
@@ -111,6 +182,12 @@ def encrypt_file(
     finally:
         _zero_fill(key_buf)
 
+    _log.debug(
+        "vault.file.encrypted",
+        kdf_id=kdf_impl.kdf_id,
+        plaintext_size=source_resolved.stat().st_size,
+        container_size=safe_target.stat().st_size,
+    )
     return safe_target
 
 
@@ -155,6 +232,12 @@ def encrypt_message(
     finally:
         _zero_fill(key_buf)
 
+    _log.debug(
+        "vault.message.encrypted",
+        kdf_id=kdf_impl.kdf_id,
+        plaintext_size=len(message),
+        container_size=safe_target.stat().st_size,
+    )
     return safe_target
 
 
@@ -167,7 +250,17 @@ def decrypt_file(
 ) -> Path:
     """Decrypt ``source`` (a ``.crypt`` file) to ``dest``.
 
-    ``dest`` defaults to ``source`` with ``.crypt`` replaced by ``.decrypt``.
+    Default destination rules:
+    * If ``source`` ends with ``.crypt`` (the normal case), the suffix is
+      replaced with ``.decrypt``: ``report.pdf.crypt`` → ``report.pdf.decrypt``.
+    * If ``source`` does **not** end with ``.crypt`` (e.g. a renamed or
+      user-supplied non-standard name), ``.decrypt`` is appended:
+      ``renamed_container`` → ``renamed_container.decrypt``. This never
+      overwrites a file that lacks the ``.crypt`` suffix, which is
+      important because the function refuses to operate on ``source`` if
+      ``dest`` would otherwise collide with it.
+
+    Pass ``dest`` explicitly to override these defaults.
     """
     source_resolved = source.resolve(strict=True)
     default_dest = _default_decrypt_dest(source_resolved)
@@ -184,18 +277,32 @@ def decrypt_file(
             key_buf[:] = derived
             cipher = AesGcmCipher()
             with atomic_writer(safe_target) as out:
-                _decrypt_stream(
-                    raw_in=raw_in,
-                    cipher=cipher,
-                    key=bytes(key_buf),
-                    base_nonce=header.base_nonce,
-                    aad_prefix=aad_prefix,
-                    chunk_bytes=chunk_bytes,
-                    out=out,
-                )
+                try:
+                    _decrypt_stream(
+                        raw_in=raw_in,
+                        cipher=cipher,
+                        key=bytes(key_buf),
+                        base_nonce=header.base_nonce,
+                        aad_prefix=aad_prefix,
+                        chunk_bytes=chunk_bytes,
+                        out=out,
+                    )
+                except (DecryptionError, CorruptedContainerError) as exc:
+                    _log.warning(
+                        "vault.file.decrypt_failed",
+                        kdf_id=kdf_impl.kdf_id,
+                        reason=type(exc).__name__,
+                    )
+                    raise
         finally:
             _zero_fill(key_buf)
 
+    _log.debug(
+        "vault.file.decrypted",
+        kdf_id=kdf_impl.kdf_id,
+        container_size=source_resolved.stat().st_size,
+        plaintext_size=safe_target.stat().st_size,
+    )
     return safe_target
 
 
@@ -221,17 +328,31 @@ def decrypt_message(
             derived = kdf_impl.derive(password.encode("utf-8"), header.salt, AES_KEY_BYTES)
             key_buf[:] = derived
             cipher = AesGcmCipher()
-            for pt in _decrypt_stream_plaintext(
-                raw_in=raw_in,
-                cipher=cipher,
-                key=bytes(key_buf),
-                base_nonce=header.base_nonce,
-                aad_prefix=aad_prefix,
-                chunk_bytes=chunk_bytes,
-            ):
-                buffer.extend(pt)
+            try:
+                for pt in _decrypt_stream_plaintext(
+                    raw_in=raw_in,
+                    cipher=cipher,
+                    key=bytes(key_buf),
+                    base_nonce=header.base_nonce,
+                    aad_prefix=aad_prefix,
+                    chunk_bytes=chunk_bytes,
+                ):
+                    buffer.extend(pt)
+            except (DecryptionError, CorruptedContainerError) as exc:
+                _log.warning(
+                    "vault.message.decrypt_failed",
+                    kdf_id=kdf_impl.kdf_id,
+                    reason=type(exc).__name__,
+                )
+                raise
         finally:
             _zero_fill(key_buf)
+    _log.debug(
+        "vault.message.decrypted",
+        kdf_id=kdf_impl.kdf_id,
+        container_size=source_resolved.stat().st_size,
+        plaintext_size=len(buffer),
+    )
     return bytes(buffer)
 
 
