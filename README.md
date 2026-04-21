@@ -54,6 +54,7 @@ L'architecture repose sur les bonnes pratiques cryptographiques modernes 2026 :
 ```
 
 Trois interfaces utilisateur partagent le même cœur Python :
+
 - **CLI** (Typer) — pour les scripts et l'automation.
 - **TUI** (Textual) — pour une expérience console riche.
 - **GUI moderne** (Tauri + React + shadcn) — pour la démo grand écran.
@@ -61,6 +62,7 @@ Trois interfaces utilisateur partagent le même cœur Python :
 ## Fonctionnalités
 
 ### Version livrée (CDC)
+
 - ✅ Chiffrer / déchiffrer un fichier ou un message (AES-GCM + PBKDF2/Argon2id)
 - ✅ Format conteneur `.crypt` versionné, magic header, intégrité GCM
 - ✅ Multi-utilisateurs locaux (SQLCipher)
@@ -71,34 +73,37 @@ Trois interfaces utilisateur partagent le même cœur Python :
 - ✅ Anti brute-force (backoff exponentiel + lockout)
 
 ### Roadmap post-livraison
+
 - 🔄 Authentification matérielle (YubiKey, Windows Hello)
 - 🔄 2FA TOTP / WebAuthn
 - 🔄 Sync entre instances locales via fichier `.gbox-share` exportable
 
 ## Stack technique
 
-| Couche             | Technologies                                                            |
-|--------------------|-------------------------------------------------------------------------|
-| Frontend GUI       | Tauri 2, React 19, TypeScript, Vite, Tailwind v4, shadcn/ui, Framer Motion |
-| Sidecar backend    | Python 3.12+, FastAPI, Pydantic v2, uvicorn, SQLAlchemy 2 async         |
-| Cryptographie      | `cryptography` (pyca), `argon2-cffi`, SQLCipher                         |
-| Persistence        | SQLite (chiffrée via SQLCipher), Alembic migrations                     |
-| CLI                | Typer + Rich                                                            |
-| TUI                | Textual                                                                 |
-| Tests              | pytest, hypothesis (property-based), pytest-cov, pytest-asyncio         |
-| Qualité            | ruff (lint+format), ty (types), bandit (sécurité), pre-commit           |
-| Build & packaging  | uv (Python deps), pnpm (Node deps), PyInstaller (sidecar), Tauri build  |
-| CI/CD              | GitHub Actions (lint, tests, security scan, build, release)             |
+| Couche            | Technologies                                                               |
+| ----------------- | -------------------------------------------------------------------------- |
+| Frontend GUI      | Tauri 2, React 19, TypeScript, Vite, Tailwind v4, shadcn/ui, Framer Motion |
+| Sidecar backend   | Python 3.12+, FastAPI, Pydantic v2, uvicorn, SQLAlchemy 2 async            |
+| Cryptographie     | `cryptography` (pyca), `argon2-cffi`, SQLCipher                            |
+| Persistence       | SQLite (chiffrée via SQLCipher), Alembic migrations                        |
+| CLI               | Typer + Rich                                                               |
+| TUI               | Textual                                                                    |
+| Tests             | pytest, hypothesis (property-based), pytest-cov, pytest-asyncio            |
+| Qualité           | ruff (lint+format), ty (types), bandit (sécurité), pre-commit              |
+| Build & packaging | uv (Python deps), pnpm (Node deps), PyInstaller (sidecar), Tauri build     |
+| CI/CD             | GitHub Actions (lint, tests, security scan, build, release)                |
 
 ## Démarrage rapide
 
 ### Prérequis
+
 - Python ≥ 3.12
 - Node.js ≥ 22 + pnpm ≥ 10
 - Rust toolchain (pour Tauri) : `rustup`
 - uv : `pip install uv` ou `curl -LsSf https://astral.sh/uv/install.sh | sh`
 
 ### Installation
+
 ```bash
 git clone https://github.com/sachamarlov/crypto-sidecar.git
 cd crypto-sidecar
@@ -107,6 +112,7 @@ pnpm --dir src/guardiabox/ui/tauri/frontend install
 ```
 
 ### Lancement en mode développement
+
 ```bash
 # CLI
 uv run guardiabox --help
@@ -119,12 +125,14 @@ pnpm --dir src/guardiabox/ui/tauri/frontend tauri dev
 ```
 
 ### Tests
+
 ```bash
 uv run pytest
 uv run pytest --cov=guardiabox --cov-report=html
 ```
 
 ### Build production
+
 ```bash
 # Sidecar Python (PyInstaller bundle)
 uv run python scripts/build_sidecar.py
@@ -135,17 +143,34 @@ pnpm --dir src/guardiabox/ui/tauri/frontend tauri build
 
 ## Documentation
 
-| Document                                    | Contenu                                                |
-|---------------------------------------------|--------------------------------------------------------|
-| [docs/SPEC.md](docs/SPEC.md)                | Vision produit et critères d'acceptation               |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)| Architecture technique détaillée                       |
-| [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md)| Modèle de menace STRIDE et mitigations                 |
-| [docs/CRYPTO_DECISIONS.md](docs/CRYPTO_DECISIONS.md) | Justifications cryptographiques (NIST/OWASP/RFC) |
-| [docs/CONVENTIONS.md](docs/CONVENTIONS.md)  | Règles de code (SOLID, DRY, naming, layering)          |
-| [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)  | Guide développeur (setup, debug, troubleshooting)      |
-| [docs/adr/](docs/adr/)                      | Architecture Decision Records (MADR v4)                |
-| [docs/specs/](docs/specs/)                  | Spec-Driven Development par fonctionnalité             |
-| [docs/cahier-des-charges/](docs/cahier-des-charges/) | Cahier des charges officiel GCS2              |
+| Document                                             | Contenu                                              |
+| ---------------------------------------------------- | ---------------------------------------------------- |
+| [docs/SPEC.md](docs/SPEC.md)                         | Vision produit et critères d'acceptation             |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)         | Architecture technique détaillée                     |
+| [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md)         | Modèle de menace STRIDE et mitigations               |
+| [docs/CRYPTO_DECISIONS.md](docs/CRYPTO_DECISIONS.md) | Justifications cryptographiques (NIST/OWASP/RFC)     |
+| [docs/CONVENTIONS.md](docs/CONVENTIONS.md)           | Règles de code (SOLID, DRY, naming, layering)        |
+| [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)           | Guide développeur (setup, debug, troubleshooting)    |
+| [docs/adr/](docs/adr/)                               | Architecture Decision Records (MADR v4) — 12 entrées |
+| [docs/specs/](docs/specs/)                           | Spec-Driven Development par fonctionnalité           |
+| [docs/cahier-des-charges/](docs/cahier-des-charges/) | Cahier des charges officiel GCS2                     |
+
+### Architecture Decision Records actuels
+
+| ID   | Titre                                                   | Statut             |
+| ---- | ------------------------------------------------------- | ------------------ |
+| 0000 | Record architectural decisions using MADR               | accepted           |
+| 0001 | Use Tauri 2 with a Python sidecar for the desktop GUI   | accepted           |
+| 0002 | AES-GCM with dual KDF (PBKDF2 default, Argon2id opt-in) | accepted           |
+| 0003 | Encrypt the SQLite database at rest with SQLCipher      | superseded by 0011 |
+| 0004 | RSA-OAEP-SHA256 hybrid cryptosystem for sharing         | accepted           |
+| 0005 | Vite over Next.js for the Tauri frontend                | accepted           |
+| 0006 | `uv` over Poetry / pip for Python dependency management | accepted           |
+| 0007 | Conventional Commits enforced by `release-please`       | accepted           |
+| 0008 | Spec-Driven Development workflow                        | accepted           |
+| 0009 | GitHub fine-grained PAT for the autonomy agent          | accepted           |
+| 0010 | Apache License 2.0 for the project                      | accepted           |
+| 0011 | Cross-platform database encryption strategy             | accepted           |
 
 ## Sécurité
 

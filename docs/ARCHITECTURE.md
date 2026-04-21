@@ -66,10 +66,10 @@
 
 ## 3. Process model
 
-* **One** Tauri shell process — owns the WebView2, system tray, Tauri commands.
-* **One** Python sidecar process — owns the FastAPI app, the SQLite DB, and
+- **One** Tauri shell process — owns the WebView2, system tray, Tauri commands.
+- **One** Python sidecar process — owns the FastAPI app, the SQLite DB, and
   any background tasks.
-* **One** WebView2 process tree (managed by the OS) — runs the React UI.
+- **One** WebView2 process tree (managed by the OS) — runs the React UI.
 
 The shell and the sidecar communicate exclusively over loopback HTTP. The
 shell discovers the sidecar's port and session token by reading the sidecar's
@@ -122,30 +122,49 @@ React app (browser)         Tauri Rust shell        Python sidecar
 
 ## 5. The `.crypt` container format (v1)
 
-| Offset    | Size        | Field                                           |
-|-----------|-------------|-------------------------------------------------|
-| 0         | 4           | Magic bytes `b"GBOX"`                           |
-| 4         | 1           | Format version (`0x01`)                         |
-| 5         | 1           | KDF identifier (`0x01` PBKDF2 / `0x02` Argon2id)|
-| 6         | 2           | KDF params length `N` (big-endian uint16)       |
-| 8         | N           | KDF params (algorithm-specific TLV)             |
-| 8+N       | 16          | Salt                                            |
-| 24+N      | 12          | Base nonce                                      |
-| 36+N      | rest        | Ciphertext stream (chunked, per-chunk tagged)   |
+| Offset | Size | Field                                            |
+| ------ | ---- | ------------------------------------------------ |
+| 0      | 4    | Magic bytes `b"GBOX"`                            |
+| 4      | 1    | Format version (`0x01`)                          |
+| 5      | 1    | KDF identifier (`0x01` PBKDF2 / `0x02` Argon2id) |
+| 6      | 2    | KDF params length `N` (big-endian uint16)        |
+| 8      | N    | KDF params (algorithm-specific TLV)              |
+| 8+N    | 16   | Salt                                             |
+| 24+N   | 12   | Base nonce                                       |
+| 36+N   | rest | Ciphertext stream (chunked, per-chunk tagged)    |
 
 Implementation rationale and per-chunk-nonce derivation are documented in
 [`CRYPTO_DECISIONS.md`](CRYPTO_DECISIONS.md).
 
-## 6. Persistence schema (SQLite via SQLCipher)
+## 6. Persistence schema (SQLite, dual encryption backend)
 
-* **users** — id, username, salt, wrapped vault key, wrapped RSA private,
+The schema is identical regardless of backend; only the **at-rest
+encryption mechanism** differs by platform (see ADR-0011).
+
+### 6.1 Storage backends
+
+| Platform                  | Backend                                             | Coverage                                                                                                                                                     |
+| ------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Linux (default)           | **SQLCipher** via `sqlcipher3-binary`               | Every page (B-tree indices, slack space, free pages). Strongest.                                                                                             |
+| Windows / macOS (default) | **Column-level AES-GCM** at the repository boundary | Sensitive columns only (filename, original_path, audit_log.target, audit_log.metadata) ; deterministic HMAC index on encrypted columns for equality lookups. |
+| Windows / macOS (opt-in)  | **SQLCipher** via `sqlcipher3` (source build)       | Equivalent to Linux ; requires `vcpkg`/`brew` + `uv sync --extra sqlcipher-source`.                                                                          |
+
+The engine is selected at process start: `try: import sqlcipher3` →
+SQLCipher engine ; otherwise vanilla SQLite + the column-level wrappers
+in `core.crypto.{encrypt_column,decrypt_column}`.
+
+### 6.2 Tables
+
+- **users** — id, username, salt, wrapped vault key, wrapped RSA private,
   RSA public PEM, KDF id + params, timestamps, lockout counters.
-* **vault_items** — id, owner_user_id, original filename, encrypted size,
-  KDF id, container path on disk, sha256 of ciphertext, timestamps.
-* **shares** — id, vault_item_id, sender_user_id, recipient_user_id, wrapped
-  data-encryption-key (RSA-OAEP), expires_at, accepted_at.
-* **audit_log** — sequence (PK), actor_user_id, action, target, metadata
-  (JSON), prev_hash, entry_hash. Append-only enforced via SQL trigger.
+- **vault_items** — id, owner_user_id, original filename (encrypted on
+  Win/Mac), encrypted size, KDF id, container path on disk, sha256 of
+  ciphertext, timestamps.
+- **shares** — id, vault_item_id, sender_user_id, recipient_user_id,
+  wrapped data-encryption-key (RSA-OAEP), expires_at, accepted_at.
+- **audit_log** — sequence (PK), actor_user_id, action, target (encrypted
+  on Win/Mac), metadata (encrypted on Win/Mac), prev_hash, entry_hash.
+  Append-only enforced via SQL trigger.
 
 Migrations are managed by Alembic (`src/guardiabox/persistence/migrations/`).
 
