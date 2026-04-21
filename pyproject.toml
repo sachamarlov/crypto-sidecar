@@ -302,6 +302,9 @@ unfixable = [
     "D",      # docstrings optional in tests
     "PLR2004",# magic numbers OK in tests
     "ARG",    # fixtures injected as args
+    "PLC2701",# importing private module internals is legitimate in tests
+    "PLC0415",# local imports are fine in helpers and fixtures
+    "ERA001", # example command lines in KAT docstrings look like commented code
 ]
 "src/guardiabox/ui/tauri/sidecar/**/*.py" = [
     "B008",   # FastAPI Depends() in defaults is the convention

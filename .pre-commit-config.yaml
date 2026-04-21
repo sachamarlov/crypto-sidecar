@@ -100,7 +100,8 @@ repos:
               docs/cahier-des-charges/.*|
               .*\.lock|
               package-lock\.json|
-              pnpm-lock\.yaml
+              (.*/)?pnpm-lock\.yaml|
+              tests/unit/test_kat_vectors\.py
           )$
 
   # ------------------------------------------------------------------
@@ -137,7 +138,9 @@ repos:
         exclude: |
           (?x)^(
               CHANGELOG\.md|
-              docs/cahier-des-charges/.*
+              docs/cahier-des-charges/.*|
+              pnpm-lock\.yaml|
+              src/guardiabox/ui/tauri/frontend/pnpm-lock\.yaml
           )$
 
   # ------------------------------------------------------------------
