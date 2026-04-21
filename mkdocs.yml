@@ -99,10 +99,32 @@ nav:
       - 0010 — Apache 2.0 license: adr/0010-license-apache-2.md
       - 0011 — Cross-platform DB encryption: adr/0011-defer-cross-platform-database-encryption.md
   - Spécifications fonctionnelles:
-      - 001 — Encrypt file: specs/001-encrypt-file/spec.md
-      - 002 — Decrypt file: specs/002-decrypt-file/spec.md
-      - 003 — RSA share: specs/003-rsa-share/spec.md
-      - 004 — Secure delete: specs/004-secure-delete/spec.md
+      - Plateforme:
+          - 000 — Multi-user + persistence (spec): specs/000-multi-user/spec.md
+          - 000 — Multi-user + persistence (plan): specs/000-multi-user/plan.md
+          - 000 — Multi-user + persistence (tasks): specs/000-multi-user/tasks.md
+          - 000 — CLI (spec): specs/000-cli/spec.md
+          - 000 — CLI (plan): specs/000-cli/plan.md
+          - 000 — CLI (tasks): specs/000-cli/tasks.md
+          - 000 — TUI (spec): specs/000-tui/spec.md
+          - 000 — TUI (plan): specs/000-tui/plan.md
+          - 000 — TUI (tasks): specs/000-tui/tasks.md
+          - 000 — Tauri sidecar (spec): specs/000-tauri-sidecar/spec.md
+          - 000 — Tauri sidecar (plan): specs/000-tauri-sidecar/plan.md
+          - 000 — Tauri sidecar (tasks): specs/000-tauri-sidecar/tasks.md
+      - Fonctionnalités:
+          - 001 — Encrypt file (spec): specs/001-encrypt-file/spec.md
+          - 001 — Encrypt file (plan): specs/001-encrypt-file/plan.md
+          - 001 — Encrypt file (tasks): specs/001-encrypt-file/tasks.md
+          - 002 — Decrypt file (spec): specs/002-decrypt-file/spec.md
+          - 002 — Decrypt file (plan): specs/002-decrypt-file/plan.md
+          - 002 — Decrypt file (tasks): specs/002-decrypt-file/tasks.md
+          - 003 — RSA share (spec): specs/003-rsa-share/spec.md
+          - 003 — RSA share (plan): specs/003-rsa-share/plan.md
+          - 003 — RSA share (tasks): specs/003-rsa-share/tasks.md
+          - 004 — Secure delete (spec): specs/004-secure-delete/spec.md
+          - 004 — Secure delete (plan): specs/004-secure-delete/plan.md
+          - 004 — Secure delete (tasks): specs/004-secure-delete/tasks.md
 docs_dir: docs
 
 extra:
