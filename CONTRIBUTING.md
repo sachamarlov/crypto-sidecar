@@ -43,20 +43,21 @@ See [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) for the full local setup.
 
 Format: `<type>(<scope>): <subject>`.
 
-| Type       | When to use                                                 |
-|------------|-------------------------------------------------------------|
-| `feat`     | New feature                                                 |
-| `fix`      | Bug fix                                                     |
-| `docs`     | Documentation only                                          |
-| `style`    | Formatting, whitespace (no code change)                     |
-| `refactor` | Code restructuring without behavior change                  |
-| `perf`     | Performance improvement                                     |
-| `test`     | Test additions or fixes only                                |
-| `build`    | Build system, dependencies                                  |
-| `ci`       | CI/CD configuration                                         |
-| `chore`    | Tooling, scaffolding, miscellaneous                         |
+| Type       | When to use                                |
+| ---------- | ------------------------------------------ |
+| `feat`     | New feature                                |
+| `fix`      | Bug fix                                    |
+| `docs`     | Documentation only                         |
+| `style`    | Formatting, whitespace (no code change)    |
+| `refactor` | Code restructuring without behavior change |
+| `perf`     | Performance improvement                    |
+| `test`     | Test additions or fixes only               |
+| `build`    | Build system, dependencies                 |
+| `ci`       | CI/CD configuration                        |
+| `chore`    | Tooling, scaffolding, miscellaneous        |
 
 Examples:
+
 - `feat(ui-tauri): add command palette with cmd+K`
 - `fix(crypto): zero-fill key buffer on Decryption error`
 - `docs(adr): record decision to use SQLCipher for at-rest encryption`

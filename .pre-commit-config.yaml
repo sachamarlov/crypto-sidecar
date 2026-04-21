@@ -24,6 +24,11 @@ repos:
         args: [--allow-multiple-documents]
       - id: check-toml
       - id: check-json
+        exclude: |
+          (?x)^(
+              src/guardiabox/ui/tauri/frontend/.*\.json|
+              src/guardiabox/ui/tauri/frontend/tsconfig.*\.json
+          )$
       - id: check-added-large-files
         args: [--maxkb=1024]
       - id: check-merge-conflict
@@ -43,9 +48,9 @@ repos:
   # Python — Ruff (lint + format)
   # ------------------------------------------------------------------
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.8.6
+    rev: v0.15.11
     hooks:
-      - id: ruff
+      - id: ruff-check
         args: [--fix, --exit-non-zero-on-fix]
         types_or: [python, pyi]
       - id: ruff-format
@@ -55,13 +60,19 @@ repos:
   # Python — Mypy strict (fallback for `ty` until stable on PyPI)
   # ------------------------------------------------------------------
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.13.0
+    rev: v1.20.1
     hooks:
       - id: mypy
         files: ^src/
         additional_dependencies:
           - pydantic>=2.10
+          - pydantic-settings>=2.7.0
           - sqlalchemy[asyncio]>=2.0.36
+          - cryptography>=46.0.0
+          - argon2-cffi>=23.1.0
+          - typer>=0.15.0
+          - fastapi>=0.115.0
+          - textual>=0.89.0
           - types-PyYAML
           - types-requests
 

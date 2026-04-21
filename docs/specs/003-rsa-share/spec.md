@@ -1,12 +1,12 @@
 # 003 — Share an encrypted file with another local user (RSA-OAEP)
 
-* Status: draft (skeleton)
-* Tracks: F-11 from `docs/SPEC.md`
-* Depends on: spec 001 (encrypt) and spec 002 (decrypt).
+- Status: draft (skeleton)
+- Tracks: F-11 from `docs/SPEC.md`
+- Depends on: spec 001 (encrypt) and spec 002 (decrypt).
 
 ## Behaviour
 
-A *sender* user produces a `.gbox-share` token bundling:
+A _sender_ user produces a `.gbox-share` token bundling:
 
 1. The recipient's user identifier.
 2. The original `.crypt` file (or a reference to it on shared storage).
@@ -42,10 +42,10 @@ Scenario: Share to unknown recipient fails closed
 
 ## Threat model deltas
 
-* Adversary AD-5 (malicious recipient) **can** read the file — that is the
+- Adversary AD-5 (malicious recipient) **can** read the file — that is the
   intent. They cannot replay the share to a third party because the wrapped
   DEK is only decryptable with their own private key.
-* Audit log entries are appended on both `share` and `share_accept` events.
+- Audit log entries are appended on both `share` and `share_accept` events.
 
 ## Plan / tasks
 

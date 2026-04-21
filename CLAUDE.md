@@ -14,13 +14,13 @@
 
 ## 2. Stack at a glance
 
-| Layer    | Tech                                                              |
-|----------|-------------------------------------------------------------------|
-| GUI      | Tauri 2 + React 19 + TypeScript + Vite + Tailwind v4 + shadcn/ui  |
-| Sidecar  | Python 3.12+ FastAPI + cryptography + argon2-cffi + SQLAlchemy 2  |
-| Persist. | SQLite via SQLCipher (at-rest encryption)                         |
-| CLI/TUI  | Typer + Textual + Rich                                            |
-| Tooling  | uv, ruff, ty, pytest, hypothesis, bandit, pre-commit, pnpm        |
+| Layer    | Tech                                                             |
+| -------- | ---------------------------------------------------------------- |
+| GUI      | Tauri 2 + React 19 + TypeScript + Vite + Tailwind v4 + shadcn/ui |
+| Sidecar  | Python 3.12+ FastAPI + cryptography + argon2-cffi + SQLAlchemy 2 |
+| Persist. | SQLite via SQLCipher (at-rest encryption)                        |
+| CLI/TUI  | Typer + Textual + Rich                                           |
+| Tooling  | uv, ruff, ty, pytest, hypothesis, bandit, pre-commit, pnpm       |
 
 Rationale for every choice → `docs/adr/`. Detailed architecture →
 `docs/ARCHITECTURE.md`.
@@ -59,17 +59,17 @@ uv run pre-commit run --all-files
 - **Conventional Commits** strictly: `feat:`, `fix:`, `docs:`, `test:`,
   `refactor:`, `chore:`, `ci:`, `build:`, `perf:`, `style:`. Scope optional but
   encouraged: `feat(security): add Argon2id KDF`.
-- **DRY** — apply *Rule of Three* before extracting an abstraction; premature
+- **DRY** — apply _Rule of Three_ before extracting an abstraction; premature
   DRY is worse than duplication.
 - **SOLID, KISS (minimal abstractions), YAGNI** — see `docs/CONVENTIONS.md`.
 - **Type-strict everywhere**: Python `ty`/`mypy --strict`, TypeScript `strict:
-  true`. No `Any` without explicit `# noqa: typing` + comment.
+true`. No `Any` without explicit `# noqa: typing` + comment.
 - **Pure functions** in `core/` whenever possible. Side effects live at the
   edges (adapters, UI, I/O).
 - **Hexagonal architecture**: dependencies always point toward `core/`. UI
   layers depend on core ports, never the other way around.
 - **No commented-out code, no TODOs without a tracking issue**, no dead branches.
-- **Default to no comments**. Only document the *why* when non-obvious.
+- **Default to no comments**. Only document the _why_ when non-obvious.
 
 ## 5. Architecture invariants
 
@@ -117,7 +117,7 @@ uv run pre-commit run --all-files
   title.
 - **Commit message format** mandated by `commitlint` (Conventional Commits).
 - All commits include `Co-Authored-By: Claude Opus 4.7 (1M context)
-  <noreply@anthropic.com>` when the agent contributed.
+<noreply@anthropic.com>` when the agent contributed.
 - `main` is protected: PR + green CI required.
 - **Never** `--force` push to `main`. Never amend a pushed commit. Never skip
   hooks (`--no-verify`).
@@ -154,20 +154,20 @@ uv run pre-commit run --all-files
 
 ## 10. Pointers — where to read more
 
-| Topic                            | Read                                |
-|----------------------------------|-------------------------------------|
-| Product vision & user features   | `docs/SPEC.md`                      |
-| Technical architecture & flows   | `docs/ARCHITECTURE.md`              |
-| Threat model (STRIDE)            | `docs/THREAT_MODEL.md`              |
-| Crypto choices & parameters      | `docs/CRYPTO_DECISIONS.md`          |
-| Code conventions (SOLID/DRY/...) | `docs/CONVENTIONS.md`               |
-| Local dev setup                  | `docs/DEVELOPMENT.md`               |
-| Architectural decisions log      | `docs/adr/` (MADR v4)               |
-| Per-feature specs                | `docs/specs/<NNN-feature>/`         |
-| Original CDC (academic brief)    | `docs/cahier-des-charges/`          |
-| Persistent agent memory          | `~/.claude/projects/.../memory/`    |
-| Contribution rules               | `CONTRIBUTING.md`                   |
-| Vulnerability reporting          | `SECURITY.md`                       |
+| Topic                            | Read                             |
+| -------------------------------- | -------------------------------- |
+| Product vision & user features   | `docs/SPEC.md`                   |
+| Technical architecture & flows   | `docs/ARCHITECTURE.md`           |
+| Threat model (STRIDE)            | `docs/THREAT_MODEL.md`           |
+| Crypto choices & parameters      | `docs/CRYPTO_DECISIONS.md`       |
+| Code conventions (SOLID/DRY/...) | `docs/CONVENTIONS.md`            |
+| Local dev setup                  | `docs/DEVELOPMENT.md`            |
+| Architectural decisions log      | `docs/adr/` (MADR v4)            |
+| Per-feature specs                | `docs/specs/<NNN-feature>/`      |
+| Original CDC (academic brief)    | `docs/cahier-des-charges/`       |
+| Persistent agent memory          | `~/.claude/projects/.../memory/` |
+| Contribution rules               | `CONTRIBUTING.md`                |
+| Vulnerability reporting          | `SECURITY.md`                    |
 
 ## 11. Anti-patterns to refuse
 
@@ -187,5 +187,5 @@ uv run pre-commit run --all-files
 
 ---
 
-*This file follows Anthropic's CLAUDE.md best practices (≤200 lines target).*
-*Last reviewed: 2026-04-20.*
+_This file follows Anthropic's CLAUDE.md best practices (≤200 lines target)._
+_Last reviewed: 2026-04-20._

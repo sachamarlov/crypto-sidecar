@@ -14,11 +14,11 @@ delete them irrecoverably — without ever trusting a remote server.
 
 ## 2. Personas
 
-| Persona            | Who they are                                         | What they want                                                                  |
-|--------------------|------------------------------------------------------|---------------------------------------------------------------------------------|
-| **Sasha** (primary)| Privacy-aware power-user on Windows 11               | Encrypt arbitrary files quickly; trust no SaaS; verifiable security             |
-| **Marie** (sharer) | Sasha's colleague who needs one specific document    | Receive a single shared file safely; minimum friction                           |
-| **Alex** (auditor) | Reviews the project for academic / professional eval | Walk through the code & docs; verify cryptographic decisions are defensible     |
+| Persona             | Who they are                                         | What they want                                                              |
+| ------------------- | ---------------------------------------------------- | --------------------------------------------------------------------------- |
+| **Sasha** (primary) | Privacy-aware power-user on Windows 11               | Encrypt arbitrary files quickly; trust no SaaS; verifiable security         |
+| **Marie** (sharer)  | Sasha's colleague who needs one specific document    | Receive a single shared file safely; minimum friction                       |
+| **Alex** (auditor)  | Reviews the project for academic / professional eval | Walk through the code & docs; verify cryptographic decisions are defensible |
 
 ## 3. Functional scope
 
@@ -56,7 +56,7 @@ delete them irrecoverably — without ever trusting a remote server.
 ## 4. Non-functional requirements
 
 | ID    | Requirement                                                              |
-|-------|--------------------------------------------------------------------------|
+| ----- | ------------------------------------------------------------------------ |
 | NFR-1 | Encrypt + decrypt ≥ 100 MiB/s on a modern laptop SSD.                    |
 | NFR-2 | KDF derivation completes in 50 ms ≤ T ≤ 1 s on the same hardware.        |
 | NFR-3 | Cold start of CLI < 200 ms; cold start of GUI < 1.5 s.                   |
