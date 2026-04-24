@@ -87,6 +87,14 @@ jobs:
         # the only CI job that catches a perf cliff before merge.
         run: uv run pytest tests/perf -v --no-cov
 
+      - name: Coverage gates (core & security >= 95%)
+        # Per-package floor from docs/CONVENTIONS.md section 13.
+        # The global >= 80% gate is already enforced by --cov-fail-under
+        # in pyproject.toml; this script adds the stricter contract for
+        # crypto-sensitive modules by reading coverage.xml and applying
+        # the per-path threshold.
+        run: uv run python scripts/check_coverage_gates.py
+
       - name: Upload coverage
         if: matrix.os == 'ubuntu-latest' && always()
         uses: codecov/codecov-action@v5
