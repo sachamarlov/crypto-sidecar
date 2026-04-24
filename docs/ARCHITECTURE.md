@@ -53,16 +53,39 @@
 │       ▼                                                         ▼    │
 │  ┌───────────────────────────┐    ┌───────────────────────────────┐  │
 │  │ guardiabox.persistence    │    │ guardiabox.fileio             │  │
-│  │ SQLAlchemy 2 + SQLCipher  │    │ safe paths, atomic, streaming │  │
+│  │ SQLAlchemy 2 + SQLCipher  │    │ safe_path · atomic · streaming│  │
+│  │                           │    │ platform (is_ssd probe)       │  │
 │  └───────────┬───────────────┘    └───────────┬───────────────────┘  │
 │              ▼                                ▼                       │
 │  ┌──────────────────────────────────────────────────────────────────┐│
 │  │                     guardiabox.core                              ││
-│  │   crypto · kdf · container · secure_delete · constants · errors  ││
+│  │   crypto · kdf · container · operations · secure_delete          ││
+│  │   constants · errors · protocols                                 ││
 │  │              (pure, no I/O, framework-agnostic)                  ││
 │  └──────────────────────────────────────────────────────────────────┘│
 └────────────────────────────────────────────────────────────────────────┘
 ```
+
+### 2.1 Module responsibility matrix
+
+| Module                      | Responsibility                                                          |
+| --------------------------- | ----------------------------------------------------------------------- |
+| `core.constants`            | Single source of truth for cipher / KDF / container parameters          |
+| `core.exceptions`           | Flat exception hierarchy (`GuardiaBoxError` + specialised subclasses)   |
+| `core.protocols`            | `AeadCipher`, `KeyDerivation` Protocols — dependency inversion anchors  |
+| `core.crypto`               | `AesGcmCipher`, `derive_chunk_nonce`, `chunk_aad` (cf. ADR-0014)        |
+| `core.kdf`                  | `Pbkdf2Kdf`, `Argon2idKdf`, `KDF_REGISTRY`, floor-enforced decode       |
+| `core.container`            | `.crypt` v1 header read/write (cf. ADR-0013)                            |
+| `core.operations`           | `encrypt_file`, `decrypt_file`, `inspect_container`, streaming AEAD     |
+| `core.secure_delete`        | DoD 5220.22-M overwrite dispatcher (crypto-erase lands in B2)           |
+| `fileio.safe_path`          | `resolve_within` anti-traversal + anti-symlink                          |
+| `fileio.atomic`             | `atomic_writer` context manager (fsync + `os.replace`)                  |
+| `fileio.streaming`          | `iter_chunks` lazy generator                                            |
+| `fileio.platform`           | `is_ssd(path)` cross-platform probe (Windows IOCTL, Linux sysfs, macOS) |
+| `security.password`         | zxcvbn-backed policy (length ≥ 12, score ≥ 3)                           |
+| `security.{keystore,audit}` | RSA keypair wrap + hash-chained audit log (spec 000-multi-user)         |
+| `ui.cli.io`                 | `ExitCode`, `exit_for`, `read_password` — shared CLI surface            |
+| `ui.cli.commands`           | Typer entry points: encrypt / decrypt / inspect / secure-delete / …     |
 
 ## 3. Process model
 

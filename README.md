@@ -114,8 +114,25 @@ pnpm --dir src/guardiabox/ui/tauri/frontend install
 ### Lancement en mode développement
 
 ```bash
-# CLI
+# CLI — voir toutes les commandes
 uv run guardiabox --help
+
+# Chiffrer / déchiffrer un fichier (AES-GCM + PBKDF2 par défaut)
+uv run guardiabox encrypt rapport.pdf
+uv run guardiabox decrypt rapport.pdf.crypt
+
+# Chiffrer avec Argon2id à la place (m=64 MiB, t=3, p=1)
+uv run guardiabox encrypt rapport.pdf --kdf argon2id
+
+# Chiffrer un message court (stockage ou tuyau shell)
+uv run guardiabox encrypt --message "secret à transmettre" -o note.crypt
+uv run guardiabox decrypt note.crypt --stdout
+
+# Inspecter l'en-tête d'un conteneur sans le déchiffrer
+uv run guardiabox inspect rapport.pdf.crypt
+
+# Supprimer de manière sécurisée (DoD 3-pass ; prévient sur SSD)
+uv run guardiabox secure-delete rapport.pdf --passes 3
 
 # TUI
 uv run guardiabox-tui
@@ -123,6 +140,18 @@ uv run guardiabox-tui
 # GUI Tauri (dev mode avec HMR)
 pnpm --dir src/guardiabox/ui/tauri/frontend tauri dev
 ```
+
+### Codes de sortie (POSIX)
+
+| Code | Signification                                                    |
+| ---- | ---------------------------------------------------------------- |
+| 0    | Succès                                                           |
+| 1    | Erreur générique                                                 |
+| 2    | Mot de passe incorrect ou conteneur altéré (anti-oracle)         |
+| 3    | Chemin refusé ou fichier introuvable                             |
+| 64   | Usage invalide (EX_USAGE)                                        |
+| 65   | Erreur de données — conteneur malformé, KDF inconnu (EX_DATAERR) |
+| 130  | Interrompu par l'utilisateur (SIGINT)                            |
 
 ### Tests
 
