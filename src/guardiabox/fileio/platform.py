@@ -79,8 +79,6 @@ class _DeviceSeekPenaltyDescriptor(ctypes.Structure):
 
 
 def _is_ssd_windows(path: Path) -> bool | None:  # pragma: no cover — Windows-only
-    if sys.platform != "win32":
-        return None
     drive = path.drive
     if not drive:
         return None
@@ -153,11 +151,11 @@ def _is_ssd_linux(path: Path) -> bool | None:  # pragma: no cover — Linux-only
         import os
 
         stat = path.stat()
-        # os.major / os.minor are POSIX-only; mypy on Windows doesn't see them.
-        major, minor = (
-            os.major(stat.st_dev),  # type: ignore[attr-defined]
-            os.minor(stat.st_dev),  # type: ignore[attr-defined]
-        )
+        # ``os.major`` / ``os.minor`` are POSIX-only; ``getattr`` avoids a
+        # static attribute lookup that mypy on Windows would flag while
+        # still being a trivial call on every POSIX host.
+        major = getattr(os, "major")(stat.st_dev)  # noqa: B009 — runtime POSIX lookup
+        minor = getattr(os, "minor")(stat.st_dev)  # noqa: B009 — runtime POSIX lookup
     except OSError:
         return None
     sys_path = Path(f"/sys/dev/block/{major}:{minor}")

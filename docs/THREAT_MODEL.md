@@ -91,6 +91,17 @@
 | **I**  | Passwords held only in `bytearray` cleared post-use. KDF outputs same. RSA private keys decrypted only on demand. |
 | **D**  | Auto-lock after `auto_lock_minutes` of inactivity zeroises in-memory keys.                                        |
 
+### 4.6 Boundary: secure deletion of plaintext files
+
+Spec 004 Phase B1 ships the overwrite path. Phase B2 adds crypto-erase
+once the keystore lands (spec 000-multi-user).
+
+| Threat | Mitigation                                                                                                                                                                                                                                                                                           |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **I**  | DoD 5220.22-M three-pass overwrite (zero / one / random, `fsync` after each pass) before `unlink`. On SSDs wear-levelling may remap blocks — NIST SP 800-88r2 §5.2. The CLI **detects SSD** via `fileio.platform.is_ssd` and warns the user before proceeding, recommending crypto-erase (Phase B2). |
+| **T**  | `_overwrite_dod` rejects directories and symlinks ; the atomic `r+b` write keeps the inode stable throughout the pass so neighbouring files are untouched.                                                                                                                                           |
+| **D**  | A kill mid-way leaves the file in a zero/one/random state — irretrievable for the original content, at worst a partially overwritten copy of the pattern, never a partial plaintext.                                                                                                                 |
+
 ## 5. Residual risks (acknowledged, not mitigated by the app)
 
 - **R-1** — Compromise of the host OS or the user account. _Mitigation:_ keep
