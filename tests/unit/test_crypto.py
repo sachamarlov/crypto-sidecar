@@ -1,4 +1,10 @@
-"""Tests for AES-GCM wrapper and chunk-nonce / AAD helpers."""
+"""Tests for AES-GCM wrapper and chunk-nonce / AAD helpers.
+
+Since Fix-1.P the :class:`AesGcmCipher` wrapper is key-bound: the AESGCM
+context is allocated once per instance and reused for every chunk. Tests
+therefore instantiate a fresh cipher per scenario (``AesGcmCipher(key)``)
+rather than passing the key to every call.
+"""
 
 from __future__ import annotations
 
@@ -20,11 +26,6 @@ from guardiabox.core.crypto import (
 from guardiabox.core.exceptions import DecryptionError
 
 
-@pytest.fixture(name="cipher")
-def _cipher() -> AesGcmCipher:
-    return AesGcmCipher()
-
-
 @pytest.fixture(name="key")
 def _key() -> bytes:
     return secrets.token_bytes(AES_KEY_BYTES)
@@ -35,68 +36,78 @@ def _nonce() -> bytes:
     return secrets.token_bytes(AES_GCM_NONCE_BYTES)
 
 
+@pytest.fixture(name="cipher")
+def _cipher(key: bytes) -> AesGcmCipher:
+    return AesGcmCipher(key)
+
+
 # ---------------------------------------------------------------------------
 # AesGcmCipher
 # ---------------------------------------------------------------------------
 
 
-def test_roundtrip_small(cipher: AesGcmCipher, key: bytes, nonce: bytes) -> None:
+def test_roundtrip_small(cipher: AesGcmCipher, nonce: bytes) -> None:
     plaintext = b"the magic words are squeamish ossifrage"
-    ct = cipher.encrypt(key, nonce, plaintext)
+    ct = cipher.encrypt(nonce, plaintext)
     assert len(ct) == len(plaintext) + AES_GCM_TAG_BYTES
-    assert cipher.decrypt(key, nonce, ct) == plaintext
+    assert cipher.decrypt(nonce, ct) == plaintext
 
 
-def test_roundtrip_empty(cipher: AesGcmCipher, key: bytes, nonce: bytes) -> None:
-    ct = cipher.encrypt(key, nonce, b"")
+def test_roundtrip_empty(cipher: AesGcmCipher, nonce: bytes) -> None:
+    ct = cipher.encrypt(nonce, b"")
     assert len(ct) == AES_GCM_TAG_BYTES
-    assert cipher.decrypt(key, nonce, ct) == b""
+    assert cipher.decrypt(nonce, ct) == b""
 
 
-def test_aad_is_authenticated(cipher: AesGcmCipher, key: bytes, nonce: bytes) -> None:
+def test_aad_is_authenticated(cipher: AesGcmCipher, nonce: bytes) -> None:
     plaintext = b"payload"
     aad = b"context"
-    ct = cipher.encrypt(key, nonce, plaintext, aad)
+    ct = cipher.encrypt(nonce, plaintext, aad)
     with pytest.raises(DecryptionError):
-        cipher.decrypt(key, nonce, ct, b"different-context")
-    assert cipher.decrypt(key, nonce, ct, aad) == plaintext
+        cipher.decrypt(nonce, ct, b"different-context")
+    assert cipher.decrypt(nonce, ct, aad) == plaintext
 
 
-def test_wrong_key_raises(cipher: AesGcmCipher, key: bytes, nonce: bytes) -> None:
-    ct = cipher.encrypt(key, nonce, b"payload")
-    other_key = secrets.token_bytes(AES_KEY_BYTES)
+def test_wrong_key_raises(cipher: AesGcmCipher, nonce: bytes) -> None:
+    ct = cipher.encrypt(nonce, b"payload")
+    other_cipher = AesGcmCipher(secrets.token_bytes(AES_KEY_BYTES))
     with pytest.raises(DecryptionError):
-        cipher.decrypt(other_key, nonce, ct)
+        other_cipher.decrypt(nonce, ct)
 
 
-def test_wrong_nonce_raises(cipher: AesGcmCipher, key: bytes, nonce: bytes) -> None:
-    ct = cipher.encrypt(key, nonce, b"payload")
+def test_wrong_nonce_raises(cipher: AesGcmCipher, nonce: bytes) -> None:
+    ct = cipher.encrypt(nonce, b"payload")
     other_nonce = secrets.token_bytes(AES_GCM_NONCE_BYTES)
     with pytest.raises(DecryptionError):
-        cipher.decrypt(key, other_nonce, ct)
+        cipher.decrypt(other_nonce, ct)
 
 
-def test_truncated_ciphertext_raises(cipher: AesGcmCipher, key: bytes, nonce: bytes) -> None:
-    ct = cipher.encrypt(key, nonce, b"payload")
+def test_truncated_ciphertext_raises(cipher: AesGcmCipher, nonce: bytes) -> None:
+    ct = cipher.encrypt(nonce, b"payload")
     with pytest.raises(DecryptionError):
-        cipher.decrypt(key, nonce, ct[: AES_GCM_TAG_BYTES // 2])
+        cipher.decrypt(nonce, ct[: AES_GCM_TAG_BYTES // 2])
 
 
-def test_tampered_byte_raises(cipher: AesGcmCipher, key: bytes, nonce: bytes) -> None:
-    ct = bytearray(cipher.encrypt(key, nonce, b"payload"))
+def test_tampered_byte_raises(cipher: AesGcmCipher, nonce: bytes) -> None:
+    ct = bytearray(cipher.encrypt(nonce, b"payload"))
     ct[0] ^= 0xFF
     with pytest.raises(DecryptionError):
-        cipher.decrypt(key, nonce, bytes(ct))
+        cipher.decrypt(nonce, bytes(ct))
 
 
-def test_invalid_key_size_raises(cipher: AesGcmCipher, nonce: bytes) -> None:
+def test_invalid_key_size_raises() -> None:
     with pytest.raises(ValueError, match="key must be"):
-        cipher.encrypt(b"\x00" * 10, nonce, b"x")
+        AesGcmCipher(b"\x00" * 10)
 
 
-def test_invalid_nonce_size_raises(cipher: AesGcmCipher, key: bytes) -> None:
+def test_invalid_nonce_size_raises(cipher: AesGcmCipher) -> None:
     with pytest.raises(ValueError, match="nonce must be"):
-        cipher.encrypt(key, b"\x00" * 5, b"x")
+        cipher.encrypt(b"\x00" * 5, b"x")
+
+
+def test_key_not_exposed_as_public_attribute(cipher: AesGcmCipher) -> None:
+    """Key material stays behind the wrapper -- no public `.key` accessor."""
+    assert not hasattr(cipher, "key")
 
 
 # ---------------------------------------------------------------------------

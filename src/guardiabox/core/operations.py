@@ -210,13 +210,12 @@ def encrypt_file(
     try:
         derived = kdf_impl.derive(_password_bytes(password), header.salt, AES_KEY_BYTES)
         key_buf[:] = derived
-        cipher = AesGcmCipher()
+        cipher = AesGcmCipher(bytes(key_buf))
         with atomic_writer(safe_target) as out:
             write_header(out, header)
             _encrypt_stream(
                 chunks=iter_chunks(source_resolved, DEFAULT_CHUNK_BYTES),
                 cipher=cipher,
-                key=bytes(key_buf),
                 base_nonce=header.base_nonce,
                 aad_prefix=aad_prefix,
                 out=out,
@@ -267,13 +266,12 @@ def encrypt_message(
     try:
         derived = kdf_impl.derive(password.encode("utf-8"), header.salt, AES_KEY_BYTES)
         key_buf[:] = derived
-        cipher = AesGcmCipher()
+        cipher = AesGcmCipher(bytes(key_buf))
         with atomic_writer(safe_target) as out:
             write_header(out, header)
             _encrypt_stream(
                 chunks=_split_message(message, DEFAULT_CHUNK_BYTES),
                 cipher=cipher,
-                key=bytes(key_buf),
                 base_nonce=header.base_nonce,
                 aad_prefix=aad_prefix,
                 out=out,
@@ -328,7 +326,7 @@ def decrypt_file(
         try:
             derived = kdf_impl.derive(_password_bytes(password), header.salt, AES_KEY_BYTES)
             key_buf[:] = derived
-            cipher = AesGcmCipher()
+            cipher = AesGcmCipher(bytes(key_buf))
             with atomic_writer(safe_target) as out:
                 # Post-KDF failures (wrong password, tampered ciphertext,
                 # truncated stream) all surface as :class:`DecryptionError`
@@ -340,7 +338,6 @@ def decrypt_file(
                 _decrypt_stream(
                     raw_in=raw_in,
                     cipher=cipher,
-                    key=bytes(key_buf),
                     base_nonce=header.base_nonce,
                     aad_prefix=aad_prefix,
                     chunk_bytes=DEFAULT_CHUNK_BYTES,
@@ -377,14 +374,13 @@ def decrypt_message(
         try:
             derived = kdf_impl.derive(_password_bytes(password), header.salt, AES_KEY_BYTES)
             key_buf[:] = derived
-            cipher = AesGcmCipher()
+            cipher = AesGcmCipher(bytes(key_buf))
             # No structlog warning on failure: see the matching comment in
             # ``decrypt_file`` — event presence on stderr is a timing
             # oracle we do not want to expose.
             for pt in _decrypt_stream_plaintext(
                 raw_in=raw_in,
                 cipher=cipher,
-                key=bytes(key_buf),
                 base_nonce=header.base_nonce,
                 aad_prefix=aad_prefix,
                 chunk_bytes=DEFAULT_CHUNK_BYTES,
@@ -410,7 +406,6 @@ def _encrypt_stream(
     *,
     chunks: Iterator[bytes],
     cipher: AesGcmCipher,
-    key: bytes,
     base_nonce: bytes,
     aad_prefix: bytes,
     out: IO[bytes],
@@ -433,7 +428,6 @@ def _encrypt_stream(
         _emit_chunk(
             out=out,
             cipher=cipher,
-            key=key,
             base_nonce=base_nonce,
             aad_prefix=aad_prefix,
             index=index,
@@ -446,7 +440,6 @@ def _encrypt_stream(
     _emit_chunk(
         out=out,
         cipher=cipher,
-        key=key,
         base_nonce=base_nonce,
         aad_prefix=aad_prefix,
         index=index,
@@ -459,7 +452,6 @@ def _emit_chunk(
     *,
     out: IO[bytes],
     cipher: AesGcmCipher,
-    key: bytes,
     base_nonce: bytes,
     aad_prefix: bytes,
     index: int,
@@ -468,14 +460,13 @@ def _emit_chunk(
 ) -> None:
     nonce = derive_chunk_nonce(base_nonce, index)
     aad = chunk_aad(aad_prefix, index, is_final=is_final)
-    out.write(cipher.encrypt(key, nonce, plaintext, aad))
+    out.write(cipher.encrypt(nonce, plaintext, aad))
 
 
 def _decrypt_stream(
     *,
     raw_in: IO[bytes],
     cipher: AesGcmCipher,
-    key: bytes,
     base_nonce: bytes,
     aad_prefix: bytes,
     chunk_bytes: int,
@@ -485,7 +476,6 @@ def _decrypt_stream(
         _decrypt_stream_plaintext(
             raw_in=raw_in,
             cipher=cipher,
-            key=key,
             base_nonce=base_nonce,
             aad_prefix=aad_prefix,
             chunk_bytes=chunk_bytes,
@@ -497,7 +487,6 @@ def _decrypt_stream_plaintext(
     *,
     raw_in: IO[bytes],
     cipher: AesGcmCipher,
-    key: bytes,
     base_nonce: bytes,
     aad_prefix: bytes,
     chunk_bytes: int,
@@ -525,7 +514,6 @@ def _decrypt_stream_plaintext(
                 raise DecryptionError("truncated final chunk")
             yield _decrypt_one(
                 cipher=cipher,
-                key=key,
                 base_nonce=base_nonce,
                 aad_prefix=aad_prefix,
                 index=index,
@@ -539,7 +527,6 @@ def _decrypt_stream_plaintext(
             # current is a full-size final chunk.
             yield _decrypt_one(
                 cipher=cipher,
-                key=key,
                 base_nonce=base_nonce,
                 aad_prefix=aad_prefix,
                 index=index,
@@ -550,7 +537,6 @@ def _decrypt_stream_plaintext(
 
         yield _decrypt_one(
             cipher=cipher,
-            key=key,
             base_nonce=base_nonce,
             aad_prefix=aad_prefix,
             index=index,
@@ -570,7 +556,6 @@ def _decrypt_stream_plaintext(
 def _decrypt_one(
     *,
     cipher: AesGcmCipher,
-    key: bytes,
     base_nonce: bytes,
     aad_prefix: bytes,
     index: int,
@@ -579,7 +564,7 @@ def _decrypt_one(
 ) -> bytes:
     nonce = derive_chunk_nonce(base_nonce, index)
     aad = chunk_aad(aad_prefix, index, is_final=is_final)
-    return cipher.decrypt(key, nonce, ciphertext, aad)
+    return cipher.decrypt(nonce, ciphertext, aad)
 
 
 def _split_message(message: bytes, chunk_bytes: int) -> Iterator[bytes]:

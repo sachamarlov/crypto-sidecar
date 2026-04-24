@@ -32,14 +32,20 @@ class KeyDerivation(Protocol):
 
 
 class AeadCipher(Protocol):
-    """Authenticated-encryption-with-associated-data primitive."""
+    """Authenticated-encryption-with-associated-data primitive.
+
+    Implementations are **key-bound**: the concrete class takes the key
+    at construction time (typically ``__init__(self, key: bytes)``) and
+    reuses the underlying cipher context for every call. The key is not
+    part of the public protocol surface — callers zero-fill their own
+    buffer and drop the cipher reference when done.
+    """
 
     nonce_bytes: ClassVar[int]
     tag_bytes: ClassVar[int]
 
     def encrypt(
         self,
-        key: bytes,
         nonce: bytes,
         plaintext: bytes,
         aad: bytes | None = None,
@@ -49,7 +55,6 @@ class AeadCipher(Protocol):
 
     def decrypt(
         self,
-        key: bytes,
         nonce: bytes,
         ciphertext_with_tag: bytes,
         aad: bytes | None = None,

@@ -45,8 +45,8 @@ _KDF_MAX_SECONDS = 5.0
 @pytest.mark.slow
 def test_aes_gcm_streaming_throughput(tmp_path: Path) -> None:
     """NFR-1 — AES-GCM streaming ≥ 100 MiB/s (asserted ≥ 50 MiB/s)."""
-    cipher = AesGcmCipher()
     key = secrets.token_bytes(AES_KEY_BYTES)
+    cipher = AesGcmCipher(key)
     base_nonce = secrets.token_bytes(AES_GCM_NONCE_BYTES)
     aad = b"bench-header"
 
@@ -59,7 +59,6 @@ def test_aes_gcm_streaming_throughput(tmp_path: Path) -> None:
     _encrypt_stream(
         chunks=_split_message(payload, DEFAULT_CHUNK_BYTES),
         cipher=cipher,
-        key=key,
         base_nonce=base_nonce,
         aad_prefix=aad,
         out=buf,
@@ -74,7 +73,6 @@ def test_aes_gcm_streaming_throughput(tmp_path: Path) -> None:
         _decrypt_stream_plaintext(
             raw_in=buf,
             cipher=cipher,
-            key=key,
             base_nonce=base_nonce,
             aad_prefix=aad,
             chunk_bytes=DEFAULT_CHUNK_BYTES,
