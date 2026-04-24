@@ -19,6 +19,7 @@ import pytest
 from guardiabox.core.constants import DEFAULT_CHUNK_BYTES, ENCRYPTED_SUFFIX
 from guardiabox.core.exceptions import (
     DecryptionError,
+    DestinationCollidesWithSourceError,
     PathTraversalError,
     WeakPasswordError,
 )
@@ -246,6 +247,47 @@ def test_decrypt_message_wrong_password_raises(tmp_path: Path) -> None:
     encrypt_message(b"payload", STRONG_PASSWORD, root=tmp_path, dest=dest, kdf=Pbkdf2Kdf())
     with pytest.raises(DecryptionError):
         decrypt_message(dest, "Another_But_Strong_Password_42!")  # pragma: allowlist secret
+
+
+def test_encrypt_refuses_source_equals_dest(tmp_path: Path) -> None:
+    source = tmp_path / "plain.bin"
+    source.write_bytes(b"data")
+    with pytest.raises(DestinationCollidesWithSourceError):
+        encrypt_file(
+            source,
+            STRONG_PASSWORD,
+            root=tmp_path,
+            kdf=Pbkdf2Kdf(),
+            dest=source,
+        )
+    # Source must be untouched after the refusal.
+    assert source.read_bytes() == b"data"
+
+
+def test_decrypt_refuses_source_equals_dest(tmp_path: Path) -> None:
+    source = tmp_path / "plain.bin"
+    source.write_bytes(b"data")
+    enc = encrypt_file(source, STRONG_PASSWORD, root=tmp_path, kdf=Pbkdf2Kdf())
+    with pytest.raises(DestinationCollidesWithSourceError):
+        decrypt_file(enc, STRONG_PASSWORD, root=tmp_path, dest=enc)
+    # .crypt must still be readable — not overwritten by plaintext.
+    assert enc.read_bytes().startswith(b"GBOX")
+
+
+def test_nfc_normalised_passwords_derive_same_key(tmp_path: Path) -> None:
+    """A password typed with precomposed vs decomposed Unicode must work
+    interchangeably — we NFC-normalise before key derivation."""
+    # U+00E9 (é single codepoint) and U+0065 U+0301 (e + combining acute)
+    # render identically but are distinct UTF-8 byte sequences.
+    nfc_password = "Café_Horse_Battery_Staple_42!" + "é"
+    nfd_password = "Café_Horse_Battery_Staple_42!" + "é"
+
+    source = tmp_path / "plain.bin"
+    source.write_bytes(b"unicode payload")
+    enc = encrypt_file(source, nfc_password, root=tmp_path, kdf=Pbkdf2Kdf())
+    # Decrypt with the NFD form — should work thanks to NFC normalisation.
+    dec = decrypt_file(enc, nfd_password, root=tmp_path)
+    assert dec.read_bytes() == b"unicode payload"
 
 
 @pytest.mark.slow

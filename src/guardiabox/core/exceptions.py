@@ -63,6 +63,16 @@ class SymlinkEscapeError(GuardiaBoxError):
     """A symbolic link points outside the allowed root directory."""
 
 
+class DestinationCollidesWithSourceError(GuardiaBoxError):
+    """The destination path resolves to the same file as the source.
+
+    Raised by encrypt/decrypt operations to prevent destructive
+    in-place overwrites. On Linux, ``os.replace`` is silent about the
+    collision — without this guard, ``decrypt_file(foo.crypt, dest=foo.crypt)``
+    writes the plaintext over the ciphertext and loses it forever.
+    """
+
+
 # ---- Password validation ---------------------------------------------------
 
 

@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import math
 from typing import Any, Final
+import unicodedata
 
 from zxcvbn import zxcvbn
 
@@ -45,7 +46,10 @@ def evaluate(password: str) -> StrengthReport:
     estimate, representative of an attacker with a realistic Argon2id-class
     KDF budget. Entropy is derived from ``log2(guesses)``.
     """
-    raw: dict[str, Any] = zxcvbn(password)
+    # Unicode NFC normalisation matches what the encrypt/decrypt derive
+    # path does before UTF-8 encoding; scoring a different form here than
+    # the one used for key derivation would be inconsistent.
+    raw: dict[str, Any] = zxcvbn(unicodedata.normalize("NFC", password))
     score: int = int(raw["score"])
     guesses: float = max(float(raw.get("guesses", 1)), 1.0)
     crack_times: dict[str, Any] = raw.get("crack_times_seconds") or {}

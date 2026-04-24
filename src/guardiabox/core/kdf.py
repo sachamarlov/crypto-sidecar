@@ -22,11 +22,15 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
 from guardiabox.core.constants import (
+    ARGON2_MAX_MEMORY_KIB,
+    ARGON2_MAX_PARALLELISM,
+    ARGON2_MAX_TIME_COST,
     ARGON2_MIN_MEMORY_KIB,
     ARGON2_MIN_PARALLELISM,
     ARGON2_MIN_TIME_COST,
     KDF_ID_ARGON2ID,
     KDF_ID_PBKDF2_SHA256,
+    PBKDF2_MAX_ITERATIONS,
     PBKDF2_MIN_ITERATIONS,
     SALT_BYTES,
 )
@@ -79,6 +83,13 @@ class Pbkdf2Kdf:
             raise WeakKdfParametersError(
                 f"PBKDF2 iterations {self.iterations} below floor {PBKDF2_MIN_ITERATIONS}"
             )
+        if self.iterations > PBKDF2_MAX_ITERATIONS:
+            # Upper cap protects against a crafted ``.crypt`` that would
+            # otherwise lock the decoder for hours. The legitimate
+            # operating range is well inside this ceiling (see CRYPTO_DECISIONS §2).
+            raise WeakKdfParametersError(
+                f"PBKDF2 iterations {self.iterations} above ceiling {PBKDF2_MAX_ITERATIONS}"
+            )
 
     def derive(self, password: bytes, salt: bytes, length: int) -> bytes:
         """Derive ``length`` bytes from ``password`` and ``salt``."""
@@ -121,13 +132,23 @@ class Argon2idKdf:
         violations: list[str] = []
         if self.memory_cost_kib < ARGON2_MIN_MEMORY_KIB:
             violations.append(f"memory_cost_kib {self.memory_cost_kib} < {ARGON2_MIN_MEMORY_KIB}")
+        if self.memory_cost_kib > ARGON2_MAX_MEMORY_KIB:
+            violations.append(
+                f"memory_cost_kib {self.memory_cost_kib} > {ARGON2_MAX_MEMORY_KIB} (ceiling)"
+            )
         if self.time_cost < ARGON2_MIN_TIME_COST:
             violations.append(f"time_cost {self.time_cost} < {ARGON2_MIN_TIME_COST}")
+        if self.time_cost > ARGON2_MAX_TIME_COST:
+            violations.append(f"time_cost {self.time_cost} > {ARGON2_MAX_TIME_COST} (ceiling)")
         if self.parallelism < ARGON2_MIN_PARALLELISM:
             violations.append(f"parallelism {self.parallelism} < {ARGON2_MIN_PARALLELISM}")
+        if self.parallelism > ARGON2_MAX_PARALLELISM:
+            violations.append(
+                f"parallelism {self.parallelism} > {ARGON2_MAX_PARALLELISM} (ceiling)"
+            )
         if violations:
             raise WeakKdfParametersError(
-                "Argon2id parameters below OWASP 2026 floor: " + "; ".join(violations)
+                "Argon2id parameters outside OWASP 2026 range: " + "; ".join(violations)
             )
 
     def derive(self, password: bytes, salt: bytes, length: int) -> bytes:

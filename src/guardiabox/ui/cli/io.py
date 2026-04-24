@@ -26,6 +26,7 @@ import typer
 from guardiabox.core.exceptions import (
     CorruptedContainerError,
     DecryptionError,
+    DestinationCollidesWithSourceError,
     GuardiaBoxError,
     IntegrityError,
     InvalidContainerError,
@@ -96,6 +97,13 @@ def exit_for(exc: BaseException) -> NoReturn:
     if isinstance(exc, (PathTraversalError, SymlinkEscapeError)):
         typer.echo(f"Chemin refusé : {exc}", err=True)
         raise typer.Exit(code=ExitCode.PATH_OR_FILE) from exc
+
+    if isinstance(exc, DestinationCollidesWithSourceError):
+        typer.echo(
+            f"Destination identique à la source (écrasement refusé) : {exc}",
+            err=True,
+        )
+        raise typer.Exit(code=ExitCode.USAGE) from exc
 
     if isinstance(exc, FileNotFoundError):
         typer.echo(f"Fichier introuvable : {exc}", err=True)

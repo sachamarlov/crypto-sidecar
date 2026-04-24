@@ -44,7 +44,10 @@ from guardiabox.core.container import (
     write_header,
 )
 from guardiabox.core.crypto import AesGcmCipher, chunk_aad, derive_chunk_nonce
-from guardiabox.core.exceptions import DecryptionError
+from guardiabox.core.exceptions import (
+    DecryptionError,
+    DestinationCollidesWithSourceError,
+)
 from guardiabox.core.kdf import Argon2idKdf, Pbkdf2Kdf, kdf_for_id
 from guardiabox.fileio.atomic import atomic_writer
 from guardiabox.fileio.safe_path import resolve_within
@@ -173,6 +176,10 @@ def encrypt_file(
     default_dest = source_resolved.parent / (source_resolved.name + ENCRYPTED_SUFFIX)
     target = dest if dest is not None else default_dest
     safe_target = resolve_within(target, root)
+    if safe_target == source_resolved:
+        raise DestinationCollidesWithSourceError(
+            f"encrypt refuses to overwrite its own source: {source_resolved}"
+        )
 
     header = ContainerHeader(
         version=CONTAINER_VERSION,
@@ -185,7 +192,7 @@ def encrypt_file(
 
     key_buf = bytearray(AES_KEY_BYTES)
     try:
-        derived = kdf_impl.derive(password.encode("utf-8"), header.salt, AES_KEY_BYTES)
+        derived = kdf_impl.derive(_password_bytes(password), header.salt, AES_KEY_BYTES)
         key_buf[:] = derived
         cipher = AesGcmCipher()
         with atomic_writer(safe_target) as out:
@@ -293,6 +300,10 @@ def decrypt_file(
     default_dest = _default_decrypt_dest(source_resolved)
     target = dest if dest is not None else default_dest
     safe_target = resolve_within(target, root)
+    if safe_target == source_resolved:
+        raise DestinationCollidesWithSourceError(
+            f"decrypt refuses to overwrite its own source: {source_resolved}"
+        )
 
     key_buf = bytearray(AES_KEY_BYTES)
     with source_resolved.open("rb") as raw_in:
@@ -300,7 +311,7 @@ def decrypt_file(
         aad_prefix = header_bytes(header)
         kdf_impl = kdf_for_id(header.kdf_id, header.kdf_params)
         try:
-            derived = kdf_impl.derive(password.encode("utf-8"), header.salt, AES_KEY_BYTES)
+            derived = kdf_impl.derive(_password_bytes(password), header.salt, AES_KEY_BYTES)
             key_buf[:] = derived
             cipher = AesGcmCipher()
             with atomic_writer(safe_target) as out:
@@ -351,7 +362,7 @@ def decrypt_message(
         aad_prefix = header_bytes(header)
         kdf_impl = kdf_for_id(header.kdf_id, header.kdf_params)
         try:
-            derived = kdf_impl.derive(password.encode("utf-8"), header.salt, AES_KEY_BYTES)
+            derived = kdf_impl.derive(_password_bytes(password), header.salt, AES_KEY_BYTES)
             key_buf[:] = derived
             cipher = AesGcmCipher()
             # No structlog warning on failure: see the matching comment in
@@ -479,6 +490,10 @@ def _decrypt_stream_plaintext(
     chunk_bytes: int,
 ) -> Iterator[bytes]:
     full_ct_size = chunk_bytes + AES_GCM_TAG_BYTES
+    # 32-bit chunk counter — derive_chunk_nonce guards writers. The
+    # reader must also refuse files that claim more than 2**32 chunks
+    # (crafted or malformed ``.crypt`` past the format's ceiling).
+    max_chunk_index = (1 << 32) - 1
     index = 0
     current = raw_in.read(full_ct_size)
     if not current:
@@ -531,6 +546,12 @@ def _decrypt_stream_plaintext(
         )
         current = next_chunk
         index += 1
+        if index > max_chunk_index:
+            # A ``.crypt`` legitimately produced by this codebase caps at
+            # ``max_chunk_index`` chunks (~256 TiB at 64 KiB chunks). A
+            # crafted file claiming more is refused before the AEAD
+            # surface is further stressed.
+            raise DecryptionError("ciphertext stream exceeds 32-bit chunk counter")
 
 
 def _decrypt_one(
@@ -562,3 +583,19 @@ def _default_decrypt_dest(source: Path) -> Path:
 def _zero_fill(buf: bytearray) -> None:
     for i in range(len(buf)):
         buf[i] = 0
+
+
+def _password_bytes(password: str) -> bytes:
+    """NFC-normalise a password before UTF-8 encoding.
+
+    Two visually-identical passwords can round-trip through different
+    Unicode codepoint sequences (``é`` as a single U+00E9 vs ``e`` +
+    U+0301 combining acute accent). Without normalisation they derive
+    distinct keys. We pick **NFC** (canonical composition) because it is
+    the default on most systems (macOS still uses NFD but normalises to
+    NFC on text output paths) and matches what a user's keyboard input
+    usually produces.
+    """
+    import unicodedata
+
+    return unicodedata.normalize("NFC", password).encode("utf-8")

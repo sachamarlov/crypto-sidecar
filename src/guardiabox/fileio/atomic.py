@@ -58,9 +58,23 @@ def atomic_writer(path: Path) -> Iterator[IO[bytes]]:
         io_obj.flush()
         os.fsync(io_obj.fileno())
         io_obj.close()
-        Path(tmp_path).replace(path)
+        try:
+            Path(tmp_path).replace(path)
+        except OSError as exc:
+            import errno
+
+            if exc.errno == errno.EXDEV:
+                msg = (
+                    f"destination '{path}' lives on a different filesystem "
+                    f"than the temp directory '{tmp_path.parent}'; atomic "
+                    "rename is impossible across volumes. Move the temp "
+                    "target (via TMPDIR / TMP) or point the output inside "
+                    "the same filesystem as the source."
+                )
+                raise OSError(errno.EXDEV, msg) from exc
+            raise
         _fsync_dir(path.parent)
-    except BaseException:
+    except (KeyboardInterrupt, Exception):
         # Close then remove the temp file; never leave partial state behind.
         with suppress(OSError):
             tmp.close()

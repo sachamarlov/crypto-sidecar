@@ -60,6 +60,48 @@ def test_pbkdf2_below_floor_refused() -> None:
         Pbkdf2Kdf(iterations=PBKDF2_MIN_ITERATIONS - 1)
 
 
+def test_pbkdf2_above_ceiling_refused() -> None:
+    from guardiabox.core.constants import PBKDF2_MAX_ITERATIONS
+
+    with pytest.raises(WeakKdfParametersError, match="above ceiling"):
+        Pbkdf2Kdf(iterations=PBKDF2_MAX_ITERATIONS + 1)
+
+
+def test_pbkdf2_decode_crafted_ceiling_overflow_refused() -> None:
+    """A crafted header with a huge uint32 iteration count must be rejected."""
+    import struct
+
+    blob = struct.pack("!I", 4_000_000_000)  # close to uint32 max
+    with pytest.raises(WeakKdfParametersError):
+        Pbkdf2Kdf.decode_params(blob)
+
+
+def test_argon2id_above_ceiling_refused() -> None:
+    from guardiabox.core.constants import (
+        ARGON2_MAX_MEMORY_KIB,
+        ARGON2_MAX_PARALLELISM,
+        ARGON2_MAX_TIME_COST,
+    )
+
+    with pytest.raises(WeakKdfParametersError, match="ceiling"):
+        Argon2idKdf(memory_cost_kib=ARGON2_MAX_MEMORY_KIB + 1)
+    with pytest.raises(WeakKdfParametersError, match="ceiling"):
+        Argon2idKdf(time_cost=ARGON2_MAX_TIME_COST + 1)
+    with pytest.raises(WeakKdfParametersError, match="ceiling"):
+        Argon2idKdf(parallelism=ARGON2_MAX_PARALLELISM + 1)
+
+
+def test_argon2id_decode_crafted_ceiling_overflow_refused() -> None:
+    import struct
+
+    # memory_cost ≈ 4 TiB (uint32 max), time_cost=1e6, parallelism=255 —
+    # well past ceilings. 4 * 1024**3 would overflow uint32 so we use the
+    # largest legal uint32 (2**32 - 1).
+    blob = struct.pack("!III", 2**32 - 1, 1_000_000, 255)
+    with pytest.raises(WeakKdfParametersError):
+        Argon2idKdf.decode_params(blob)
+
+
 def test_pbkdf2_salt_below_floor_refused() -> None:
     with pytest.raises(WeakKdfParametersError):
         Pbkdf2Kdf().derive(b"password", b"short", 32)
