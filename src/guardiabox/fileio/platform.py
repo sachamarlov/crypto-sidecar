@@ -83,7 +83,10 @@ def _is_ssd_windows(path: Path) -> bool | None:  # pragma: no cover — Windows-
     if not drive:
         return None
     device = rf"\\.\{drive}"
-    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    # ``ctypes.WinDLL`` is Windows-only; ``getattr`` keeps mypy on
+    # non-Windows hosts from complaining about the missing attribute.
+    win_dll_cls = getattr(ctypes, "WinDLL")  # noqa: B009
+    kernel32 = win_dll_cls("kernel32", use_last_error=True)
     kernel32.CreateFileW.argtypes = (
         wintypes.LPCWSTR,
         wintypes.DWORD,
