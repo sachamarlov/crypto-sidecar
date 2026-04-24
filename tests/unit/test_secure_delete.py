@@ -8,6 +8,7 @@ import pytest
 
 from guardiabox.core.secure_delete import (
     DEFAULT_OVERWRITE_PASSES,
+    MAX_OVERWRITE_PASSES,
     SecureDeleteMethod,
     secure_delete,
 )
@@ -44,6 +45,24 @@ def test_passes_must_be_positive(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="passes"):
         secure_delete(target, passes=0)
     assert target.exists()
+
+
+def test_passes_above_max_refused(tmp_path: Path) -> None:
+    """Fix-1.K -- DoS guard: an unreasonable ``passes`` is refused before
+    any I/O. The file must survive the error."""
+    target = tmp_path / "t.bin"
+    target.write_bytes(b"x")
+    with pytest.raises(ValueError, match="passes"):
+        secure_delete(target, passes=MAX_OVERWRITE_PASSES + 1)
+    assert target.exists()
+
+
+def test_passes_at_max_accepted(tmp_path: Path) -> None:
+    """The exact ceiling ``MAX_OVERWRITE_PASSES`` is still valid."""
+    target = tmp_path / "ceiling.bin"
+    target.write_bytes(b"x")
+    secure_delete(target, passes=MAX_OVERWRITE_PASSES)
+    assert not target.exists()
 
 
 def test_missing_file_raises_file_not_found(tmp_path: Path) -> None:
