@@ -46,7 +46,7 @@ def test_pbkdf2_message_roundtrip(
     tmp: Path = tmp_path_factory.mktemp("prop")
     sliced = payload[:size]
     dest = tmp / "msg.crypt"
-    encrypt_message(sliced, STRONG_PASSWORD, kdf=Pbkdf2Kdf(), dest=dest)
+    encrypt_message(sliced, STRONG_PASSWORD, root=tmp, dest=dest, kdf=Pbkdf2Kdf())
     assert decrypt_message(dest, STRONG_PASSWORD) == sliced
 
 
@@ -56,5 +56,5 @@ def test_argon2id_message_roundtrip(tmp_path: Path) -> None:
     """A single Argon2id roundtrip per suite — the KDF is expensive."""
     payload = b"\xde\xad\xbe\xef" * 1024
     dest = tmp_path / "msg.crypt"
-    encrypt_message(payload, STRONG_PASSWORD, kdf=Argon2idKdf(), dest=dest)
+    encrypt_message(payload, STRONG_PASSWORD, root=tmp_path, dest=dest, kdf=Argon2idKdf())
     assert decrypt_message(dest, STRONG_PASSWORD) == payload

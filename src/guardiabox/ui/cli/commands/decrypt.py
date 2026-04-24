@@ -75,5 +75,4 @@ def _dispatch(
         sys.stdout.flush()
         return None
 
-    safe_output = resolve_within(output, cwd) if output is not None else None
-    return decrypt_file(safe_source, password, dest=safe_output)
+    return decrypt_file(safe_source, password, root=cwd, dest=output)

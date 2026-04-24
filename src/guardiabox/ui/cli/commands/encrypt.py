@@ -117,13 +117,13 @@ def _encrypt_file_flow(
         typer.echo(f"Fichier introuvable : {safe_source}", err=True)
         raise typer.Exit(code=ExitCode.PATH_OR_FILE)
 
-    safe_output = resolve_within(output, cwd) if output is not None else None
     password = read_password(stdin=password_stdin, confirm=True)
     return encrypt_file(
         safe_source,
         password,
+        root=cwd,
         kdf=_build_kdf(kdf),
-        dest=safe_output,
+        dest=output,
     )
 
 
@@ -138,15 +138,15 @@ def _encrypt_message_flow(
         typer.echo("Erreur : --output est requis avec --message.", err=True)
         raise typer.Exit(code=ExitCode.USAGE)
     cwd = Path.cwd().resolve()
-    safe_output = resolve_within(output, cwd)
 
     raw_message = _resolve_message(message)
     password = read_password(stdin=password_stdin, confirm=True)
     return encrypt_message(
         raw_message,
         password,
+        root=cwd,
+        dest=output,
         kdf=_build_kdf(kdf),
-        dest=safe_output,
     )
 
 

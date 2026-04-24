@@ -44,7 +44,7 @@ from guardiabox.core.container import (
     write_header,
 )
 from guardiabox.core.crypto import AesGcmCipher, chunk_aad, derive_chunk_nonce
-from guardiabox.core.exceptions import CorruptedContainerError, DecryptionError
+from guardiabox.core.exceptions import DecryptionError
 from guardiabox.core.kdf import Argon2idKdf, Pbkdf2Kdf, kdf_for_id
 from guardiabox.fileio.atomic import atomic_writer
 from guardiabox.fileio.safe_path import resolve_within
@@ -136,24 +136,43 @@ def encrypt_file(
     source: Path,
     password: str,
     *,
+    root: Path,
     kdf: Pbkdf2Kdf | Argon2idKdf | None = None,
     dest: Path | None = None,
     chunk_bytes: int = DEFAULT_CHUNK_BYTES,
 ) -> Path:
     """Encrypt ``source`` to ``dest`` (or ``source.crypt`` alongside).
 
-    The password is validated against
-    :func:`guardiabox.security.password.assert_strong` before any disk write,
-    and any path escape is caught by :func:`resolve_within`. The derived key
-    is zero-filled in memory after use.
+    Args:
+        source: File to encrypt. Resolved strictly — must exist.
+        password: User-supplied secret. Validated via
+            :func:`guardiabox.security.password.assert_strong`.
+        root: Directory tree inside which both ``source`` and ``dest``
+            must resolve. The CLI passes ``Path.cwd()``; other callers
+            (sidecar, TUI) must pass their configured vault root. **This
+            parameter is mandatory and has no default** — per the
+            spec-002 post-mortem, a self-referential default silently
+            defeats :func:`resolve_within` in non-CLI callers.
+        kdf: PBKDF2 (default) or Argon2id. Floors enforced in
+            :mod:`guardiabox.core.kdf`.
+        dest: Output path. Defaults to ``source + ".crypt"``. Must
+            resolve inside ``root`` or :class:`PathTraversalError` is raised.
+        chunk_bytes: Streaming chunk size (default 64 KiB).
+
+    Returns:
+        The resolved ``.crypt`` path written.
+
+    Raises:
+        WeakPasswordError, PathTraversalError, SymlinkEscapeError,
+        FileNotFoundError, OSError.
     """
     assert_strong(password)
     kdf_impl: Pbkdf2Kdf | Argon2idKdf = kdf if kdf is not None else DEFAULT_KDF()
 
-    source_resolved = source.resolve(strict=True)
+    source_resolved = resolve_within(source, root).resolve(strict=True)
     default_dest = source_resolved.parent / (source_resolved.name + ENCRYPTED_SUFFIX)
     target = dest if dest is not None else default_dest
-    safe_target = resolve_within(target, source_resolved.parent)
+    safe_target = resolve_within(target, root)
 
     header = ContainerHeader(
         version=CONTAINER_VERSION,
@@ -195,15 +214,22 @@ def encrypt_message(
     message: bytes,
     password: str,
     *,
-    kdf: Pbkdf2Kdf | Argon2idKdf | None = None,
+    root: Path,
     dest: Path,
+    kdf: Pbkdf2Kdf | Argon2idKdf | None = None,
     chunk_bytes: int = DEFAULT_CHUNK_BYTES,
 ) -> Path:
-    """Encrypt ``message`` (raw bytes) to a ``.crypt`` file at ``dest``."""
+    """Encrypt ``message`` (raw bytes) to a ``.crypt`` file at ``dest``.
+
+    Same ``root`` contract as :func:`encrypt_file`: ``dest`` must resolve
+    strictly inside ``root``. The self-referential default of the first
+    implementation (``dest.parent``) was flagged by the external audit
+    as structurally no-op and has been removed.
+    """
     assert_strong(password)
     kdf_impl: Pbkdf2Kdf | Argon2idKdf = kdf if kdf is not None else DEFAULT_KDF()
 
-    safe_target = resolve_within(dest, dest.resolve(strict=False).parent)
+    safe_target = resolve_within(dest, root)
 
     header = ContainerHeader(
         version=CONTAINER_VERSION,
@@ -245,6 +271,7 @@ def decrypt_file(
     source: Path,
     password: str,
     *,
+    root: Path,
     dest: Path | None = None,
     chunk_bytes: int = DEFAULT_CHUNK_BYTES,
 ) -> Path:
@@ -262,10 +289,10 @@ def decrypt_file(
 
     Pass ``dest`` explicitly to override these defaults.
     """
-    source_resolved = source.resolve(strict=True)
+    source_resolved = resolve_within(source, root).resolve(strict=True)
     default_dest = _default_decrypt_dest(source_resolved)
     target = dest if dest is not None else default_dest
-    safe_target = resolve_within(target, source_resolved.parent)
+    safe_target = resolve_within(target, root)
 
     key_buf = bytearray(AES_KEY_BYTES)
     with source_resolved.open("rb") as raw_in:
@@ -277,23 +304,22 @@ def decrypt_file(
             key_buf[:] = derived
             cipher = AesGcmCipher()
             with atomic_writer(safe_target) as out:
-                try:
-                    _decrypt_stream(
-                        raw_in=raw_in,
-                        cipher=cipher,
-                        key=bytes(key_buf),
-                        base_nonce=header.base_nonce,
-                        aad_prefix=aad_prefix,
-                        chunk_bytes=chunk_bytes,
-                        out=out,
-                    )
-                except (DecryptionError, CorruptedContainerError) as exc:
-                    _log.warning(
-                        "vault.file.decrypt_failed",
-                        kdf_id=kdf_impl.kdf_id,
-                        reason=type(exc).__name__,
-                    )
-                    raise
+                # Post-KDF failures (wrong password, tampered ciphertext,
+                # truncated stream) all surface as :class:`DecryptionError`
+                # via :func:`_decrypt_stream_plaintext`. No structlog
+                # warning is emitted here because the stderr channel is
+                # observable by an attacker — event presence itself would
+                # become a timing oracle. Persistent audit logging lands
+                # with spec 000-multi-user and writes to a separate sink.
+                _decrypt_stream(
+                    raw_in=raw_in,
+                    cipher=cipher,
+                    key=bytes(key_buf),
+                    base_nonce=header.base_nonce,
+                    aad_prefix=aad_prefix,
+                    chunk_bytes=chunk_bytes,
+                    out=out,
+                )
         finally:
             _zero_fill(key_buf)
 
@@ -328,23 +354,18 @@ def decrypt_message(
             derived = kdf_impl.derive(password.encode("utf-8"), header.salt, AES_KEY_BYTES)
             key_buf[:] = derived
             cipher = AesGcmCipher()
-            try:
-                for pt in _decrypt_stream_plaintext(
-                    raw_in=raw_in,
-                    cipher=cipher,
-                    key=bytes(key_buf),
-                    base_nonce=header.base_nonce,
-                    aad_prefix=aad_prefix,
-                    chunk_bytes=chunk_bytes,
-                ):
-                    buffer.extend(pt)
-            except (DecryptionError, CorruptedContainerError) as exc:
-                _log.warning(
-                    "vault.message.decrypt_failed",
-                    kdf_id=kdf_impl.kdf_id,
-                    reason=type(exc).__name__,
-                )
-                raise
+            # No structlog warning on failure: see the matching comment in
+            # ``decrypt_file`` — event presence on stderr is a timing
+            # oracle we do not want to expose.
+            for pt in _decrypt_stream_plaintext(
+                raw_in=raw_in,
+                cipher=cipher,
+                key=bytes(key_buf),
+                base_nonce=header.base_nonce,
+                aad_prefix=aad_prefix,
+                chunk_bytes=chunk_bytes,
+            ):
+                buffer.extend(pt)
         finally:
             _zero_fill(key_buf)
     _log.debug(
@@ -461,13 +482,19 @@ def _decrypt_stream_plaintext(
     index = 0
     current = raw_in.read(full_ct_size)
     if not current:
-        raise CorruptedContainerError("ciphertext stream is empty — missing final chunk")
+        # Post-header failures raise ``DecryptionError`` (not
+        # ``CorruptedContainerError``) so the CLI routes them through the
+        # anti-oracle branch (exit 2 + constant message) rather than the
+        # data-error branch (exit 65). An attacker who can influence the
+        # trailing bytes of a ``.crypt`` (stream truncation) must not be
+        # able to distinguish that failure from a wrong password.
+        raise DecryptionError("ciphertext stream missing final chunk")
 
     while True:
         if len(current) < full_ct_size:
             # Short read → this is the last chunk regardless of what comes next.
             if len(current) < AES_GCM_TAG_BYTES:
-                raise CorruptedContainerError("truncated final chunk (smaller than AES-GCM tag)")
+                raise DecryptionError("truncated final chunk")
             yield _decrypt_one(
                 cipher=cipher,
                 key=key,
