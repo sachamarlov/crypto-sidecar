@@ -214,3 +214,14 @@ def test_kdf_for_id_returns_argon2id() -> None:
 def test_kdf_for_id_unknown_raises() -> None:
     with pytest.raises(UnknownKdfError):
         kdf_for_id(0xEE, b"")
+
+
+def test_kdf_registry_is_read_only() -> None:
+    """Fix-1.O -- a rogue module cannot monkey-patch a fake KDF in."""
+    from guardiabox.core.kdf import KDF_REGISTRY
+
+    with pytest.raises(TypeError):
+        KDF_REGISTRY[0x99] = Pbkdf2Kdf  # type: ignore[index]
+    # Existing keys remain pointing at the real classes.
+    assert KDF_REGISTRY[KDF_ID_PBKDF2_SHA256] is Pbkdf2Kdf
+    assert KDF_REGISTRY[KDF_ID_ARGON2ID] is Argon2idKdf
