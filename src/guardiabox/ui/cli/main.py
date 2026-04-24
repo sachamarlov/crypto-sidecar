@@ -49,6 +49,7 @@ def _root(
 from guardiabox.ui.cli.commands import (  # noqa: E402
     decrypt as _decrypt,  # noqa: F401
     encrypt as _encrypt,  # noqa: F401
+    init as _init,  # noqa: F401
     inspect as _inspect,  # noqa: F401
     menu as _menu,  # noqa: F401
     secure_delete as _secure_delete,  # noqa: F401
