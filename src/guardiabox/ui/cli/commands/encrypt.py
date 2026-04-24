@@ -6,7 +6,7 @@ Responsibilities handled here:
 * Resolve user-supplied paths against the current working directory and reject
   any traversal (``../../etc/passwd`` style inputs).
 * Prompt for the password (no-echo, confirmation) or read it from stdin.
-* Map domain exceptions to localised French messages and process exit codes.
+* Map domain exceptions to exit codes via :func:`guardiabox.ui.cli.io.exit_for`.
 """
 
 from __future__ import annotations
@@ -17,14 +17,10 @@ import sys
 
 import typer
 
-from guardiabox.core.exceptions import (
-    PathTraversalError,
-    SymlinkEscapeError,
-    WeakPasswordError,
-)
 from guardiabox.core.kdf import Argon2idKdf, Pbkdf2Kdf
 from guardiabox.core.operations import encrypt_file, encrypt_message
 from guardiabox.fileio.safe_path import resolve_within
+from guardiabox.ui.cli.io import ExitCode, exit_for, read_password
 from guardiabox.ui.cli.main import app
 
 
@@ -69,39 +65,43 @@ def encrypt_command(
 ) -> None:
     """Chiffrer un fichier ou un message avec un mot de passe utilisateur."""
     try:
-        if message is not None:
-            target = _encrypt_message_flow(
-                message=message,
-                output=output,
-                kdf=kdf,
-                password_stdin=password_stdin,
-            )
-        else:
-            if path is None:
-                typer.echo("Erreur : fournir un chemin de fichier ou --message.", err=True)
-                raise typer.Exit(1)
-            target = _encrypt_file_flow(
-                path=path,
-                output=output,
-                kdf=kdf,
-                password_stdin=password_stdin,
-            )
-    except WeakPasswordError as exc:
-        typer.echo(f"Mot de passe trop faible (score zxcvbn < 3) : {exc}", err=True)
-        raise typer.Exit(1) from exc
-    except (PathTraversalError, SymlinkEscapeError) as exc:
-        typer.echo(f"Chemin refusé : {exc}", err=True)
-        raise typer.Exit(1) from exc
-    except FileNotFoundError as exc:
-        typer.echo(f"Fichier introuvable : {exc}", err=True)
-        raise typer.Exit(1) from exc
-    except KeyboardInterrupt as exc:
-        raise typer.Exit(130) from exc
-    except OSError as exc:
-        typer.echo(f"Erreur disque : {exc}", err=True)
-        raise typer.Exit(1) from exc
+        target = _dispatch(
+            path=path,
+            message=message,
+            output=output,
+            kdf=kdf,
+            password_stdin=password_stdin,
+        )
+    except (Exception, KeyboardInterrupt) as exc:
+        exit_for(exc)
 
     typer.echo(f"Chiffré : {target}")
+
+
+def _dispatch(
+    *,
+    path: Path | None,
+    message: str | None,
+    output: Path | None,
+    kdf: KdfChoice,
+    password_stdin: bool,
+) -> Path:
+    if message is not None:
+        return _encrypt_message_flow(
+            message=message,
+            output=output,
+            kdf=kdf,
+            password_stdin=password_stdin,
+        )
+    if path is None:
+        typer.echo("Erreur : fournir un chemin de fichier ou --message.", err=True)
+        raise typer.Exit(code=ExitCode.USAGE)
+    return _encrypt_file_flow(
+        path=path,
+        output=output,
+        kdf=kdf,
+        password_stdin=password_stdin,
+    )
 
 
 def _encrypt_file_flow(
@@ -115,10 +115,10 @@ def _encrypt_file_flow(
     safe_source = resolve_within(path, cwd)
     if not safe_source.is_file():
         typer.echo(f"Fichier introuvable : {safe_source}", err=True)
-        raise typer.Exit(1)
+        raise typer.Exit(code=ExitCode.PATH_OR_FILE)
 
     safe_output = resolve_within(output, cwd) if output is not None else None
-    password = _read_password(stdin=password_stdin, confirm=True)
+    password = read_password(stdin=password_stdin, confirm=True)
     return encrypt_file(
         safe_source,
         password,
@@ -136,12 +136,12 @@ def _encrypt_message_flow(
 ) -> Path:
     if output is None:
         typer.echo("Erreur : --output est requis avec --message.", err=True)
-        raise typer.Exit(1)
+        raise typer.Exit(code=ExitCode.USAGE)
     cwd = Path.cwd().resolve()
     safe_output = resolve_within(output, cwd)
 
     raw_message = _resolve_message(message)
-    password = _read_password(stdin=password_stdin, confirm=True)
+    password = read_password(stdin=password_stdin, confirm=True)
     return encrypt_message(
         raw_message,
         password,
@@ -160,16 +160,3 @@ def _build_kdf(choice: KdfChoice) -> Pbkdf2Kdf | Argon2idKdf:
     if choice is KdfChoice.ARGON2ID:
         return Argon2idKdf()
     return Pbkdf2Kdf()
-
-
-def _read_password(*, stdin: bool, confirm: bool) -> str:
-    if stdin:
-        raw = sys.stdin.readline()
-        return raw.rstrip("\n").rstrip("\r")
-    prompt_text = "Mot de passe"
-    result: str = typer.prompt(
-        prompt_text,
-        hide_input=True,
-        confirmation_prompt=confirm,
-    )
-    return result

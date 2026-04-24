@@ -82,7 +82,7 @@ def test_cli_rejects_path_traversal(tmp_path: Path) -> None:
         ["encrypt", "../escape.txt", "--password-stdin"],
         cwd=tmp_path,
         stdin=(STRONG_PASSWORD + "\n").encode(),
-        expected_exit=1,
+        expected_exit=3,  # ExitCode.PATH_OR_FILE per docs/specs/000-cli/plan.md
     )
     assert b"chemin" in result.stderr.lower() or b"refus" in result.stderr.lower()
 
