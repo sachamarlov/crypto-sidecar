@@ -16,10 +16,15 @@ from pathlib import Path
 
 import pytest
 
-from guardiabox.core.constants import DEFAULT_CHUNK_BYTES, ENCRYPTED_SUFFIX
+from guardiabox.core.constants import (
+    DEFAULT_CHUNK_BYTES,
+    ENCRYPTED_SUFFIX,
+    MAX_IN_MEMORY_MESSAGE_BYTES,
+)
 from guardiabox.core.exceptions import (
     DecryptionError,
     DestinationCollidesWithSourceError,
+    MessageTooLargeError,
     PathTraversalError,
     WeakPasswordError,
 )
@@ -288,6 +293,29 @@ def test_nfc_normalised_passwords_derive_same_key(tmp_path: Path) -> None:
     # Decrypt with the NFD form — should work thanks to NFC normalisation.
     dec = decrypt_file(enc, nfd_password, root=tmp_path)
     assert dec.read_bytes() == b"unicode payload"
+
+
+def test_encrypt_message_refuses_payload_above_limit(tmp_path: Path) -> None:
+    """Fix-1.W -- guard: a payload above MAX_IN_MEMORY_MESSAGE_BYTES is refused."""
+    dest = tmp_path / "big.crypt"
+    oversized = b"\x00" * (MAX_IN_MEMORY_MESSAGE_BYTES + 1)
+    with pytest.raises(MessageTooLargeError):
+        encrypt_message(oversized, STRONG_PASSWORD, root=tmp_path, dest=dest, kdf=Pbkdf2Kdf())
+    assert not dest.exists()
+
+
+def test_decrypt_message_refuses_source_above_limit(tmp_path: Path) -> None:
+    """Fix-1.W -- guard: decrypt_message refuses oversized .crypt files.
+
+    We do not actually build a multi-MB container; we fabricate a fake
+    file of the threshold size + 1 and check the bound fires before any
+    header parse. The content does not need to be a real container for
+    this test.
+    """
+    fake = tmp_path / "huge.crypt"
+    fake.write_bytes(b"\x00" * (MAX_IN_MEMORY_MESSAGE_BYTES + 1))
+    with pytest.raises(MessageTooLargeError):
+        decrypt_message(fake, STRONG_PASSWORD)
 
 
 @pytest.mark.slow

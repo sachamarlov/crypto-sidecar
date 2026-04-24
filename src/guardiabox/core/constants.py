@@ -85,6 +85,15 @@ SALT_BYTES: Final[int] = 16
 DEFAULT_CHUNK_BYTES: Final[int] = 64 * 1024
 """Default chunk size for streaming encryption / decryption."""
 
+MAX_IN_MEMORY_MESSAGE_BYTES: Final[int] = 10 * 1024 * 1024
+"""Upper bound for the ``--message`` / ``decrypt_message`` in-memory path.
+
+``decrypt_message`` accumulates the decoded plaintext in a ``bytearray``
+so the caller can print or forward it in one go. Without a bound a
+crafted or accidental 10 GiB ``.crypt`` would OOM the process. Above
+this threshold callers must use the file-based ``decrypt_file``
+API, which streams to disk."""
+
 # ---------------------------------------------------------------------------
 # File extensions
 # ---------------------------------------------------------------------------

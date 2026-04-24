@@ -30,6 +30,7 @@ from guardiabox.core.exceptions import (
     GuardiaBoxError,
     IntegrityError,
     InvalidContainerError,
+    MessageTooLargeError,
     PathTraversalError,
     SymlinkEscapeError,
     UnknownKdfError,
@@ -77,12 +78,16 @@ class ExitCode(IntEnum):
 ANTI_ORACLE_MESSAGE: str = "Échec du déchiffrement : mot de passe incorrect ou données altérées."
 
 
-def exit_for(exc: BaseException) -> NoReturn:
+def exit_for(exc: BaseException) -> NoReturn:  # noqa: PLR0912 -- wide dispatch by design
     """Emit the localised message for ``exc`` and exit with the mapped code.
 
     Never returns — always raises :class:`typer.Exit`. Pass-through for
     already-wrapped :class:`typer.Exit` so a caller that already
     requested a specific exit code keeps it.
+
+    The branch count is intentional: each GuardiaBox exception class
+    maps to a distinct French-language message and POSIX exit code; a
+    lookup dict would hide the per-branch wording that tests read.
     """
     if isinstance(exc, typer.Exit):
         raise exc
@@ -103,6 +108,10 @@ def exit_for(exc: BaseException) -> NoReturn:
             f"Destination identique à la source (écrasement refusé) : {exc}",
             err=True,
         )
+        raise typer.Exit(code=ExitCode.USAGE) from exc
+
+    if isinstance(exc, MessageTooLargeError):
+        typer.echo(f"Message trop volumineux : {exc}", err=True)
         raise typer.Exit(code=ExitCode.USAGE) from exc
 
     if isinstance(exc, FileNotFoundError):

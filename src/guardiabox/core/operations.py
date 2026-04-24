@@ -35,6 +35,7 @@ from guardiabox.core.constants import (
     DECRYPTED_SUFFIX,
     DEFAULT_CHUNK_BYTES,
     ENCRYPTED_SUFFIX,
+    MAX_IN_MEMORY_MESSAGE_BYTES,
     SALT_BYTES,
 )
 from guardiabox.core.container import (
@@ -47,6 +48,7 @@ from guardiabox.core.crypto import AesGcmCipher, chunk_aad, derive_chunk_nonce
 from guardiabox.core.exceptions import (
     DecryptionError,
     DestinationCollidesWithSourceError,
+    MessageTooLargeError,
 )
 from guardiabox.core.kdf import Argon2idKdf, Pbkdf2Kdf, kdf_for_id
 from guardiabox.fileio.atomic import atomic_writer
@@ -247,7 +249,16 @@ def encrypt_message(
     implementation (``dest.parent``) was flagged by the external audit
     as structurally no-op and has been removed. Chunk size is the
     module-wide :data:`DEFAULT_CHUNK_BYTES` — see :func:`encrypt_file`.
+
+    Raises:
+        MessageTooLargeError: If ``len(message) > MAX_IN_MEMORY_MESSAGE_BYTES``.
+            Callers with larger payloads must use :func:`encrypt_file`.
     """
+    if len(message) > MAX_IN_MEMORY_MESSAGE_BYTES:
+        raise MessageTooLargeError(
+            f"message of {len(message)} bytes exceeds in-memory limit "
+            f"{MAX_IN_MEMORY_MESSAGE_BYTES}; use encrypt_file for larger payloads"
+        )
     assert_strong(password)
     kdf_impl: Pbkdf2Kdf | Argon2idKdf = kdf if kdf is not None else DEFAULT_KDF()
 
@@ -363,8 +374,22 @@ def decrypt_message(
 
     Used by the CLI's ``decrypt --message`` path which prints the plaintext to
     stdout rather than writing to disk.
+
+    Raises:
+        MessageTooLargeError: If the ``.crypt`` file is larger than
+            :data:`MAX_IN_MEMORY_MESSAGE_BYTES`; callers must go through
+            :func:`decrypt_file` in that case to stream to disk.
     """
     source_resolved = source.resolve(strict=True)
+    # The plaintext is bounded by the ciphertext size (minus header +
+    # per-chunk tags). If the file on disk is already above the
+    # in-memory limit, refuse before reading any secret material.
+    ct_size = source_resolved.stat().st_size
+    if ct_size > MAX_IN_MEMORY_MESSAGE_BYTES:
+        raise MessageTooLargeError(
+            f"ciphertext of {ct_size} bytes exceeds in-memory limit "
+            f"{MAX_IN_MEMORY_MESSAGE_BYTES}; use decrypt_file for larger payloads"
+        )
     buffer = bytearray()
     key_buf = bytearray(AES_KEY_BYTES)
     with source_resolved.open("rb") as raw_in:

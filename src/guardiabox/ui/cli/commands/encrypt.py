@@ -17,6 +17,8 @@ import sys
 
 import typer
 
+from guardiabox.core.constants import MAX_IN_MEMORY_MESSAGE_BYTES
+from guardiabox.core.exceptions import MessageTooLargeError
 from guardiabox.core.kdf import Argon2idKdf, Pbkdf2Kdf
 from guardiabox.core.operations import encrypt_file, encrypt_message
 from guardiabox.fileio.safe_path import resolve_within
@@ -152,7 +154,16 @@ def _encrypt_message_flow(
 
 def _resolve_message(value: str) -> bytes:
     if value == "-":
-        return sys.stdin.buffer.read()
+        # Read at most MAX + 1 to detect overflow without allocating an
+        # unbounded buffer. A caller piping a multi-gigabyte stream
+        # should route through encrypt_file instead.
+        data = sys.stdin.buffer.read(MAX_IN_MEMORY_MESSAGE_BYTES + 1)
+        if len(data) > MAX_IN_MEMORY_MESSAGE_BYTES:
+            raise MessageTooLargeError(
+                f"stdin payload exceeds in-memory limit "
+                f"{MAX_IN_MEMORY_MESSAGE_BYTES}; use encrypt on a file instead"
+            )
+        return data
     return value.encode("utf-8")
 
 

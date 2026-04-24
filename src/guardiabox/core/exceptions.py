@@ -78,3 +78,16 @@ class DestinationCollidesWithSourceError(GuardiaBoxError):
 
 class WeakPasswordError(GuardiaBoxError):
     """The password fails the configured strength policy (zxcvbn score)."""
+
+
+# ---- In-memory message bounds ----------------------------------------------
+
+
+class MessageTooLargeError(GuardiaBoxError):
+    """The plaintext / ciphertext message exceeds the in-memory limit.
+
+    Raised by :func:`encrypt_message` / :func:`decrypt_message` when the
+    payload would otherwise be loaded entirely into a ``bytearray``.
+    Callers must route larger payloads through the file-based
+    :func:`encrypt_file` / :func:`decrypt_file` API.
+    """
