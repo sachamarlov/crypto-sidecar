@@ -130,10 +130,20 @@ def _fsync_dir(directory: Path) -> None:
     """
     if os.name != "posix":
         return
-    # ``os.O_DIRECTORY`` is POSIX-only; on Windows mypy does not know about it.
+    _fsync_dir_posix(directory)  # pragma: no cover -- POSIX-only branch
+
+
+def _fsync_dir_posix(directory: Path) -> None:  # pragma: no cover -- POSIX only
+    """POSIX-specific directory fsync.
+
+    Extracted into its own function so the coverage pragma sits once at
+    the function level instead of scattered across every statement. The
+    ``os.O_DIRECTORY`` flag is only defined on POSIX; ``getattr`` avoids
+    a static attribute lookup that mypy on Windows would flag.
+    """
     o_directory: int = getattr(os, "O_DIRECTORY", 0)
-    fd = os.open(str(directory), o_directory)  # pragma: no cover — POSIX only
-    try:  # pragma: no cover
-        os.fsync(fd)  # pragma: no cover
-    finally:  # pragma: no cover
-        os.close(fd)  # pragma: no cover
+    fd = os.open(str(directory), o_directory)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
