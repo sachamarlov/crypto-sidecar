@@ -285,8 +285,8 @@ def test_nfc_normalised_passwords_derive_same_key(tmp_path: Path) -> None:
     interchangeably — we NFC-normalise before key derivation."""
     # U+00E9 (é single codepoint) and U+0065 U+0301 (e + combining acute)
     # render identically but are distinct UTF-8 byte sequences.
-    nfc_password = "Café_Horse_Battery_Staple_42!" + "é"
-    nfd_password = "Café_Horse_Battery_Staple_42!" + "é"
+    nfc_password = "Café_Horse_Battery_Staple_42!" + "é"  # pragma: allowlist secret
+    nfd_password = "Café_Horse_Battery_Staple_42!" + "é"  # pragma: allowlist secret
 
     source = tmp_path / "plain.bin"
     source.write_bytes(b"unicode payload")
