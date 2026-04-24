@@ -63,7 +63,15 @@ jobs:
         # known-vulnerability detection on external deps still returns
         # exit code 1 without it -- only the "could not audit my own source"
         # false positive is silenced. See CLAUDE.md §9bis.
-        run: uv run pip-audit --skip-editable --progress-spinner=off
+        #
+        # --ignore-vuln=CVE-2026-3219 suppresses the current CVE on pip
+        # itself (the installer, not one of our runtime deps). pip-audit
+        # reports it but there is no fixed version published yet; pip is
+        # only present at install time (build + CI), never shipped in our
+        # distributable. Documented here and re-reviewed each CI touch.
+        run: >-
+          uv run pip-audit --skip-editable --progress-spinner=off
+          --ignore-vuln=CVE-2026-3219
 
       - name: Secret scan baseline (detect-secrets)
         # `git ls-files -z | xargs -0` instead of `$(git ls-files)` so we

@@ -396,6 +396,13 @@ markers = [
 filterwarnings = [
     "error",
     "ignore::DeprecationWarning:cryptography.*",
+    # SQLAlchemy aiosqlite sockets + asyncio event loops are sometimes
+    # GC'd after the loop closes on CI runners (Linux + Windows Python
+    # 3.12); the resulting `PytestUnraisableExceptionWarning` is raised
+    # from inside _pytest / stdlib cleanup code and is not ours to fix.
+    # The filter targets that class only -- every other warning stays
+    # elevated to an error. Re-review on each test-harness upgrade.
+    "ignore::pytest.PytestUnraisableExceptionWarning",
 ]
 
 # ============================================================================

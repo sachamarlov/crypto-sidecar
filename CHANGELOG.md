@@ -28,6 +28,17 @@ what is actually merged on `main`.
 - CLI: `encrypt`, `decrypt`, `inspect`, `secure-delete` sub-commands
   with POSIX exit codes (0/1/2/3/64/65/130).
 - 16 ADRs (MADR v4) documenting every architectural decision.
+- **Spec 000-multi-user Phase C-1** — persistence foundations:
+  SQLAlchemy 2.0 async models (`User`, `VaultItem`, `Share`,
+  `AuditEntry`), column-level AES-GCM encryption with HMAC indices
+  for lookup on encrypted columns (ADR-0011 fallback path),
+  Alembic initial migration with append-only triggers on
+  `audit_log`, async engine + `session_scope`, concrete
+  `UserRepository` / `VaultItemRepository` / `ShareRepository` /
+  `AuditRepository`, keystore `create` / `unlock` /
+  `change_password` (RSA-4096 + AES-256 vault key), audit
+  hash-chain `append` / `verify` with byte-identical tamper
+  detection over ciphertext columns.
 
 ### Security
 - KDF parameter floors AND ceilings enforced on both encode and decode
@@ -43,10 +54,11 @@ what is actually merged on `main`.
   as `Exception` (per CONVENTIONS.md §16, never catches `BaseException`).
 
 ### Known roadmap (not yet merged)
-- Multi-user vault + SQLCipher persistence (spec 000-multi-user).
+- Multi-user vault **Phase C-2**: CLI surface (`user`, `history`,
+  `doctor --verify-audit`) + integration with encrypt/decrypt flows
+  (spec 000-multi-user tasks T-000mu.09 to T-000mu.13).
 - RSA-OAEP hybrid sharing (spec 003).
 - Cryptographic erase (spec 004 Phase B2).
-- Interactive CLI menu F-7 (spec 000-cli), TUI (spec 000-tui),
-  GUI + Tauri sidecar (spec 000-tauri-sidecar).
+- TUI (spec 000-tui), GUI + Tauri sidecar (spec 000-tauri-sidecar).
 
 [Unreleased]: https://github.com/sachamarlov/crypto-sidecar/compare/v0.0.0...HEAD
