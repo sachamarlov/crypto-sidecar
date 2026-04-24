@@ -61,22 +61,37 @@ Trois interfaces utilisateur partagent le même cœur Python :
 
 ## Fonctionnalités
 
-### Version livrée (CDC)
+### Version livrée sur `main` (au 2026-04-24)
 
-- ✅ Chiffrer / déchiffrer un fichier ou un message (AES-GCM + PBKDF2/Argon2id)
-- ✅ Format conteneur `.crypt` versionné, magic header, intégrité GCM
-- ✅ Multi-utilisateurs locaux (SQLCipher)
-- ✅ Historique des opérations (audit log hash-chained)
-- ✅ Partage entre utilisateurs locaux (RSA-OAEP cryptosystème hybride)
-- ✅ Suppression sécurisée (overwrite multi-passes + cryptographic erase)
-- ✅ Validation entrées (zxcvbn, anti path-traversal)
-- ✅ Anti brute-force (backoff exponentiel + lockout)
+- ✅ Chiffrer / déchiffrer un fichier ou un message (AES-GCM + PBKDF2 /
+  Argon2id), specs 001 + 002.
+- ✅ Format conteneur `.crypt` v1 versionné, magic header, AAD chunk-bound
+  anti-truncation (ADR-0013 + ADR-0014).
+- ✅ Anti-oracle vérifié byte à byte via subprocess
+  (ADR-0015, [tests/unit/test_cli_anti_oracle.py](tests/unit/test_cli_anti_oracle.py)).
+- ✅ Suppression sécurisée par écrasement DoD 5220.22-M multi-pass
+  - détection SSD cross-platform (spec 004 Phase B1).
+- ✅ Validation entrées (zxcvbn length ≥ 12 / score ≥ 3, anti path-traversal,
+  reparse points Windows rejetés).
+- ✅ Inspection d'un conteneur `.crypt` sans déchiffrement (`guardiabox inspect`).
+- ✅ Menu console interactif `guardiabox menu` (CDC F-7 — trois actions CDC +
+  inspection + suppression sécurisée).
 
-### Roadmap post-livraison
+### Roadmap — à implémenter avant la soutenance
 
-- 🔄 Authentification matérielle (YubiKey, Windows Hello)
-- 🔄 2FA TOTP / WebAuthn
-- 🔄 Sync entre instances locales via fichier `.gbox-share` exportable
+- 🔨 Multi-utilisateurs locaux (SQLCipher + keystore RSA) — spec 000-multi-user.
+- 🔨 Historique des opérations (audit log hash-chained) — livré avec multi-user.
+- 🔨 Partage entre utilisateurs locaux (RSA-OAEP hybride) — spec 003.
+- 🔨 Cryptographic erase (effacement clé + unlink `.crypt`) — spec 004 Phase B2.
+- 🔨 TUI Textual — spec 000-tui.
+- 🔨 GUI Tauri + React — spec 000-tauri-sidecar + frontend.
+
+### Roadmap post-MVP
+
+- 🔄 Authentification matérielle (YubiKey, Windows Hello).
+- 🔄 2FA TOTP / WebAuthn.
+- 🔄 Anti brute-force (backoff exponentiel + lockout).
+- 🔄 Sync entre instances locales via fichier `.gbox-share` exportable.
 
 ## Stack technique
 
@@ -172,35 +187,38 @@ pnpm --dir src/guardiabox/ui/tauri/frontend tauri build
 
 ## Documentation
 
-| Document                                             | Contenu                                              |
-| ---------------------------------------------------- | ---------------------------------------------------- |
-| [docs/SPEC.md](docs/SPEC.md)                         | Vision produit et critères d'acceptation             |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)         | Architecture technique détaillée                     |
-| [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md)         | Modèle de menace STRIDE et mitigations               |
-| [docs/CRYPTO_DECISIONS.md](docs/CRYPTO_DECISIONS.md) | Justifications cryptographiques (NIST/OWASP/RFC)     |
-| [docs/CONVENTIONS.md](docs/CONVENTIONS.md)           | Règles de code (SOLID, DRY, naming, layering)        |
-| [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)           | Guide développeur (setup, debug, troubleshooting)    |
-| [docs/adr/](docs/adr/)                               | Architecture Decision Records (MADR v4) — 13 entrées |
-| [docs/specs/](docs/specs/)                           | Spec-Driven Development par fonctionnalité           |
-| [docs/cahier-des-charges/](docs/cahier-des-charges/) | Cahier des charges officiel GCS2                     |
+| Document                                             | Contenu                                                                    |
+| ---------------------------------------------------- | -------------------------------------------------------------------------- |
+| [docs/SPEC.md](docs/SPEC.md)                         | Vision produit et critères d'acceptation                                   |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)         | Architecture technique détaillée                                           |
+| [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md)         | Modèle de menace STRIDE et mitigations                                     |
+| [docs/CRYPTO_DECISIONS.md](docs/CRYPTO_DECISIONS.md) | Justifications cryptographiques (NIST/OWASP/RFC)                           |
+| [docs/CONVENTIONS.md](docs/CONVENTIONS.md)           | Règles de code (SOLID, DRY, naming, layering)                              |
+| [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)           | Guide développeur (setup, debug, troubleshooting)                          |
+| [docs/adr/](docs/adr/)                               | Architecture Decision Records (MADR v4) — 16 entrées (ADR-0000 à ADR-0015) |
+| [docs/specs/](docs/specs/)                           | Spec-Driven Development par fonctionnalité                                 |
+| [docs/cahier-des-charges/](docs/cahier-des-charges/) | Cahier des charges officiel GCS2                                           |
 
 ### Architecture Decision Records actuels
 
-| ID   | Titre                                                     | Statut             |
-| ---- | --------------------------------------------------------- | ------------------ |
-| 0000 | Record architectural decisions using MADR                 | accepted           |
-| 0001 | Use Tauri 2 with a Python sidecar for the desktop GUI     | accepted           |
-| 0002 | AES-GCM with dual KDF (PBKDF2 default, Argon2id opt-in)   | accepted           |
-| 0003 | Encrypt the SQLite database at rest with SQLCipher        | superseded by 0011 |
-| 0004 | RSA-OAEP-SHA256 hybrid cryptosystem for sharing           | accepted           |
-| 0005 | Vite over Next.js for the Tauri frontend                  | accepted           |
-| 0006 | `uv` over Poetry / pip for Python dependency management   | accepted           |
-| 0007 | Conventional Commits enforced by `release-please`         | accepted           |
-| 0008 | Spec-Driven Development workflow                          | accepted           |
-| 0009 | GitHub fine-grained PAT for the autonomy agent            | accepted           |
-| 0010 | Apache License 2.0 for the project                        | accepted           |
-| 0011 | Cross-platform database encryption strategy               | accepted           |
-| 0012 | PyInstaller for MVP, planned migration to Nuitka post-CDC | accepted           |
+| ID   | Titre                                                      | Statut             |
+| ---- | ---------------------------------------------------------- | ------------------ |
+| 0000 | Record architectural decisions using MADR                  | accepted           |
+| 0001 | Use Tauri 2 with a Python sidecar for the desktop GUI      | accepted           |
+| 0002 | AES-GCM with dual KDF (PBKDF2 default, Argon2id opt-in)    | accepted           |
+| 0003 | Encrypt the SQLite database at rest with SQLCipher         | superseded by 0011 |
+| 0004 | RSA-OAEP-SHA256 hybrid cryptosystem for sharing            | accepted           |
+| 0005 | Vite over Next.js for the Tauri frontend                   | accepted           |
+| 0006 | `uv` over Poetry / pip for Python dependency management    | accepted           |
+| 0007 | Conventional Commits enforced by `release-please`          | accepted           |
+| 0008 | Spec-Driven Development workflow                           | accepted           |
+| 0009 | GitHub fine-grained PAT for the autonomy agent             | accepted           |
+| 0010 | Apache License 2.0 for the project                         | accepted           |
+| 0011 | Cross-platform database encryption strategy                | accepted           |
+| 0012 | PyInstaller for MVP, planned migration to Nuitka post-CDC  | accepted           |
+| 0013 | `.crypt` container v1 on-disk format                       | accepted           |
+| 0014 | Chunk-bound AAD for streaming AEAD                         | accepted           |
+| 0015 | Anti-oracle: unify stderr and exit code on decrypt failure | accepted           |
 
 ## Sécurité
 

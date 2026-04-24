@@ -149,25 +149,37 @@ def encrypt_file(
     Args:
         source: File to encrypt. Resolved strictly — must exist.
         password: User-supplied secret. Validated via
-            :func:`guardiabox.security.password.assert_strong`.
+            :func:`guardiabox.security.password.assert_strong`. NFC-
+            normalised before UTF-8 encoding so precomposed and
+            decomposed codepoint sequences derive the same key.
         root: Directory tree inside which both ``source`` and ``dest``
             must resolve. The CLI passes ``Path.cwd()``; other callers
             (sidecar, TUI) must pass their configured vault root. **This
             parameter is mandatory and has no default** — per the
             spec-002 post-mortem, a self-referential default silently
             defeats :func:`resolve_within` in non-CLI callers.
-        kdf: PBKDF2 (default) or Argon2id. Floors enforced in
-            :mod:`guardiabox.core.kdf`.
+        kdf: PBKDF2 (default) or Argon2id. Floors AND ceilings enforced
+            in :mod:`guardiabox.core.kdf`.
         dest: Output path. Defaults to ``source + ".crypt"``. Must
-            resolve inside ``root`` or :class:`PathTraversalError` is raised.
+            resolve inside ``root`` or :class:`PathTraversalError` is
+            raised. If the resolved destination equals ``source``,
+            :class:`DestinationCollidesWithSourceError` is raised
+            before any write.
         chunk_bytes: Streaming chunk size (default 64 KiB).
 
     Returns:
         The resolved ``.crypt`` path written.
 
+    Note on zero-fill: the mutable ``bytearray`` holding the derived
+    key is zeroed in a ``finally`` block. Python's immutable ``bytes``
+    copies (the one returned by ``kdf.derive`` and the one passed to
+    ``AESGCM``) cannot be zero-filled from Python — see
+    ``docs/THREAT_MODEL.md`` §4.5 for the honest scope of this
+    mitigation.
+
     Raises:
         WeakPasswordError, PathTraversalError, SymlinkEscapeError,
-        FileNotFoundError, OSError.
+        FileNotFoundError, DestinationCollidesWithSourceError, OSError.
     """
     assert_strong(password)
     kdf_impl: Pbkdf2Kdf | Argon2idKdf = kdf if kdf is not None else DEFAULT_KDF()
