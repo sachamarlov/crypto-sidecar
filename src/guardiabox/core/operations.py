@@ -142,7 +142,6 @@ def encrypt_file(
     root: Path,
     kdf: Pbkdf2Kdf | Argon2idKdf | None = None,
     dest: Path | None = None,
-    chunk_bytes: int = DEFAULT_CHUNK_BYTES,
 ) -> Path:
     """Encrypt ``source`` to ``dest`` (or ``source.crypt`` alongside).
 
@@ -165,7 +164,12 @@ def encrypt_file(
             raised. If the resolved destination equals ``source``,
             :class:`DestinationCollidesWithSourceError` is raised
             before any write.
-        chunk_bytes: Streaming chunk size (default 64 KiB).
+
+    The streaming chunk size is fixed at :data:`DEFAULT_CHUNK_BYTES`
+    (64 KiB). The ``.crypt`` container does not encode the size, so
+    writer and reader must agree via the module-wide constant; exposing
+    it as a call-site argument used to let a caller accidentally
+    produce files a different caller could not decrypt.
 
     Returns:
         The resolved ``.crypt`` path written.
@@ -210,7 +214,7 @@ def encrypt_file(
         with atomic_writer(safe_target) as out:
             write_header(out, header)
             _encrypt_stream(
-                chunks=iter_chunks(source_resolved, chunk_bytes),
+                chunks=iter_chunks(source_resolved, DEFAULT_CHUNK_BYTES),
                 cipher=cipher,
                 key=bytes(key_buf),
                 base_nonce=header.base_nonce,
@@ -236,14 +240,14 @@ def encrypt_message(
     root: Path,
     dest: Path,
     kdf: Pbkdf2Kdf | Argon2idKdf | None = None,
-    chunk_bytes: int = DEFAULT_CHUNK_BYTES,
 ) -> Path:
     """Encrypt ``message`` (raw bytes) to a ``.crypt`` file at ``dest``.
 
     Same ``root`` contract as :func:`encrypt_file`: ``dest`` must resolve
     strictly inside ``root``. The self-referential default of the first
     implementation (``dest.parent``) was flagged by the external audit
-    as structurally no-op and has been removed.
+    as structurally no-op and has been removed. Chunk size is the
+    module-wide :data:`DEFAULT_CHUNK_BYTES` — see :func:`encrypt_file`.
     """
     assert_strong(password)
     kdf_impl: Pbkdf2Kdf | Argon2idKdf = kdf if kdf is not None else DEFAULT_KDF()
@@ -267,7 +271,7 @@ def encrypt_message(
         with atomic_writer(safe_target) as out:
             write_header(out, header)
             _encrypt_stream(
-                chunks=_split_message(message, chunk_bytes),
+                chunks=_split_message(message, DEFAULT_CHUNK_BYTES),
                 cipher=cipher,
                 key=bytes(key_buf),
                 base_nonce=header.base_nonce,
@@ -292,7 +296,6 @@ def decrypt_file(
     *,
     root: Path,
     dest: Path | None = None,
-    chunk_bytes: int = DEFAULT_CHUNK_BYTES,
 ) -> Path:
     """Decrypt ``source`` (a ``.crypt`` file) to ``dest``.
 
@@ -340,7 +343,7 @@ def decrypt_file(
                     key=bytes(key_buf),
                     base_nonce=header.base_nonce,
                     aad_prefix=aad_prefix,
-                    chunk_bytes=chunk_bytes,
+                    chunk_bytes=DEFAULT_CHUNK_BYTES,
                     out=out,
                 )
         finally:
@@ -358,8 +361,6 @@ def decrypt_file(
 def decrypt_message(
     source: Path,
     password: str,
-    *,
-    chunk_bytes: int = DEFAULT_CHUNK_BYTES,
 ) -> bytes:
     """Decrypt ``source`` and return the plaintext bytes in memory.
 
@@ -386,7 +387,7 @@ def decrypt_message(
                 key=bytes(key_buf),
                 base_nonce=header.base_nonce,
                 aad_prefix=aad_prefix,
-                chunk_bytes=chunk_bytes,
+                chunk_bytes=DEFAULT_CHUNK_BYTES,
             ):
                 buffer.extend(pt)
         finally:
