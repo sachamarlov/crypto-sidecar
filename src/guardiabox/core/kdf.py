@@ -36,10 +36,17 @@ from guardiabox.core.exceptions import (
 )
 
 __all__ = [
+    "KDF_REGISTRY",
     "Argon2idKdf",
     "Pbkdf2Kdf",
     "kdf_for_id",
 ]
+
+#: Public registry mapping ``kdf_id`` bytes to the concrete KDF class.
+#: A new KDF is added by registering ``kdf_id → class`` here and implementing
+#: ``encode_params`` / ``decode_params``. The container layout itself needs
+#: no change (cf. ADR-0013). ``kdf_for_id`` uses this registry internally.
+KDF_REGISTRY: dict[int, type[Pbkdf2Kdf] | type[Argon2idKdf]] = {}
 
 _PBKDF2_PARAMS_STRUCT = struct.Struct("!I")  # iterations (4 bytes)
 _ARGON2_PARAMS_STRUCT = struct.Struct("!III")  # memory_kib | time_cost | parallelism
@@ -156,6 +163,10 @@ class Argon2idKdf:
         )
 
 
+KDF_REGISTRY[KDF_ID_PBKDF2_SHA256] = Pbkdf2Kdf
+KDF_REGISTRY[KDF_ID_ARGON2ID] = Argon2idKdf
+
+
 def kdf_for_id(kdf_id: int, params: bytes) -> Pbkdf2Kdf | Argon2idKdf:
     """Return the concrete KDF instance matching ``kdf_id`` with ``params``.
 
@@ -164,13 +175,9 @@ def kdf_for_id(kdf_id: int, params: bytes) -> Pbkdf2Kdf | Argon2idKdf:
         WeakKdfParametersError: If the decoded parameters violate the floor.
         CorruptedContainerError: If ``params`` cannot be parsed.
     """
-    if kdf_id == KDF_ID_PBKDF2_SHA256:
-        return Pbkdf2Kdf.decode_params(params)
-    if kdf_id == KDF_ID_ARGON2ID:
-        return Argon2idKdf.decode_params(params)
-    # Lazy import to avoid a cycle — UnknownKdfError is part of the same
-    # exception surface as the container errors but raising directly here
-    # keeps the flow explicit.
-    from guardiabox.core.exceptions import UnknownKdfError
+    kdf_cls = KDF_REGISTRY.get(kdf_id)
+    if kdf_cls is None:
+        from guardiabox.core.exceptions import UnknownKdfError
 
-    raise UnknownKdfError(f"unknown kdf_id=0x{kdf_id:02x}")
+        raise UnknownKdfError(f"unknown kdf_id=0x{kdf_id:02x}")
+    return kdf_cls.decode_params(params)

@@ -11,17 +11,9 @@ from pathlib import Path
 
 import typer
 
-from guardiabox.core.exceptions import (
-    CorruptedContainerError,
-    InvalidContainerError,
-    PathTraversalError,
-    SymlinkEscapeError,
-    UnknownKdfError,
-    UnsupportedVersionError,
-    WeakKdfParametersError,
-)
-from guardiabox.core.operations import inspect_container
+from guardiabox.core.operations import ContainerInspection, inspect_container
 from guardiabox.fileio.safe_path import resolve_within
+from guardiabox.ui.cli.io import ExitCode, exit_for
 from guardiabox.ui.cli.main import app
 
 
@@ -34,30 +26,9 @@ def inspect_command(
 ) -> None:
     """Afficher l'en-tête d'un fichier ``.crypt`` (aucun déchiffrement)."""
     try:
-        cwd = Path.cwd().resolve()
-        safe_source = resolve_within(path, cwd)
-        if not safe_source.is_file():
-            typer.echo(f"Fichier introuvable : {safe_source}", err=True)
-            raise typer.Exit(1)
-        info = inspect_container(safe_source)
-    except (PathTraversalError, SymlinkEscapeError) as exc:
-        typer.echo(f"Chemin refusé : {exc}", err=True)
-        raise typer.Exit(1) from exc
-    except FileNotFoundError as exc:
-        typer.echo(f"Fichier introuvable : {exc}", err=True)
-        raise typer.Exit(1) from exc
-    except (InvalidContainerError, UnsupportedVersionError) as exc:
-        typer.echo(f"Conteneur invalide : {exc}", err=True)
-        raise typer.Exit(1) from exc
-    except (UnknownKdfError, WeakKdfParametersError) as exc:
-        typer.echo(f"Paramètres KDF non supportés : {exc}", err=True)
-        raise typer.Exit(1) from exc
-    except CorruptedContainerError as exc:
-        typer.echo(f"Conteneur corrompu : {exc}", err=True)
-        raise typer.Exit(1) from exc
-    except OSError as exc:
-        typer.echo(f"Erreur disque : {exc}", err=True)
-        raise typer.Exit(1) from exc
+        info = _read_info(path)
+    except (Exception, KeyboardInterrupt) as exc:
+        exit_for(exc)
 
     typer.echo(f"Fichier          : {info.path}")
     typer.echo(f"Format version   : {info.version}")
@@ -67,3 +38,12 @@ def inspect_command(
     typer.echo(f"Nonce de base    : {info.base_nonce_hex}")
     typer.echo(f"Taille en-tête   : {info.header_size} octets")
     typer.echo(f"Taille ciphertxt : {info.ciphertext_size} octets")
+
+
+def _read_info(path: Path) -> ContainerInspection:
+    cwd = Path.cwd().resolve()
+    safe_source = resolve_within(path, cwd)
+    if not safe_source.is_file():
+        typer.echo(f"Fichier introuvable : {safe_source}", err=True)
+        raise typer.Exit(code=ExitCode.PATH_OR_FILE)
+    return inspect_container(safe_source)
