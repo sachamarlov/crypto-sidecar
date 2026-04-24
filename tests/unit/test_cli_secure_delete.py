@@ -37,6 +37,14 @@ def _mock_ssd(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
+def _mock_unknown_media(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Simulate an is_ssd probe that can't decide (remote FS, unusual disk)."""
+    monkeypatch.setattr(
+        "guardiabox.ui.cli.commands.secure_delete.is_ssd",
+        lambda _path: None,
+    )
+
+
 def test_secure_delete_happy_path_hdd(
     runner: CliRunner, workdir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -110,6 +118,38 @@ def test_secure_delete_no_confirm_flag_bypasses_prompt(
     result = runner.invoke(
         app,
         ["secure-delete", "ssd.bin", "--no-confirm"],
+    )
+    assert result.exit_code == ExitCode.OK
+    assert not target.exists()
+
+
+def test_secure_delete_on_unknown_media_prompts_and_aborts(
+    runner: CliRunner, workdir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Fix-1.M -- is_ssd returning None must warn and ask for confirmation."""
+    _mock_unknown_media(monkeypatch)
+    target = workdir / "unknown.bin"
+    target.write_bytes(b"data")
+    result = runner.invoke(
+        app,
+        ["secure-delete", "unknown.bin"],
+        input="n\n",
+    )
+    assert result.exit_code == ExitCode.GENERIC
+    assert target.exists()
+    assert "support" in result.stderr.lower() or "identifié" in result.stderr.lower()
+
+
+def test_secure_delete_on_unknown_media_no_confirm(
+    runner: CliRunner, workdir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """--no-confirm lets the unknown-media path proceed without prompting."""
+    _mock_unknown_media(monkeypatch)
+    target = workdir / "unknown.bin"
+    target.write_bytes(b"data")
+    result = runner.invoke(
+        app,
+        ["secure-delete", "unknown.bin", "--no-confirm"],
     )
     assert result.exit_code == ExitCode.OK
     assert not target.exists()

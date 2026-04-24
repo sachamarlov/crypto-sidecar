@@ -12,11 +12,24 @@ encryption pipeline:
 * :func:`chunk_aad` — build the associated-data blob bound to every chunk:
   full serialised header bytes + chunk index + final-flag. This prevents
   chunk reordering, truncation, and header substitution.
+
+AESGCM context reuse (Fix-1.P)
+------------------------------
+
+``AesGcmCipher`` is **key-bound** by construction: instantiating it with a key
+builds the underlying :class:`AESGCM` context once, and the same context is
+reused for every chunk of the file. Prior to Fix-1.P the wrapper was
+stateless and rebuilt the AESGCM context on every chunk, paying the AES key
+schedule thousands of times per file for no gain. See NFR-1 (``docs/SPEC.md``).
+
+The wrapper intentionally does **not** expose the key after construction;
+callers zero-fill their own bytearray buffer and drop the cipher reference
+when they are done with the file. The AESGCM C context still holds a copy
+internally — ``docs/THREAT_MODEL.md`` §4.5 documents the honest scope.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import struct
 from typing import ClassVar
 
@@ -71,28 +84,31 @@ def chunk_aad(header_bytes: bytes, chunk_index: int, *, is_final: bool) -> bytes
     return header_bytes + _CHUNK_AAD_SUFFIX_STRUCT.pack(chunk_index, 1 if is_final else 0)
 
 
-@dataclass(frozen=True, slots=True)
 class AesGcmCipher:
-    """AES-256-GCM with 12-byte nonces (NIST SP 800-38D recommended)."""
+    """AES-256-GCM bound to a single key for its lifetime.
+
+    Instantiate once per file / per secret; reuse for every chunk. The
+    underlying :class:`AESGCM` context (and its AES key schedule) is
+    allocated in :meth:`__init__` and shared across all ``encrypt`` /
+    ``decrypt`` calls on the instance.
+    """
+
+    __slots__ = ("_impl",)
 
     nonce_bytes: ClassVar[int] = AES_GCM_NONCE_BYTES
     tag_bytes: ClassVar[int] = AES_GCM_TAG_BYTES
 
-    def encrypt(
-        self,
-        key: bytes,
-        nonce: bytes,
-        plaintext: bytes,
-        aad: bytes | None = None,
-    ) -> bytes:
-        """Encrypt ``plaintext`` and return ``ciphertext || tag``."""
+    def __init__(self, key: bytes) -> None:
         _validate_key(key)
+        self._impl: AESGCM = AESGCM(key)
+
+    def encrypt(self, nonce: bytes, plaintext: bytes, aad: bytes | None = None) -> bytes:
+        """Encrypt ``plaintext`` and return ``ciphertext || tag``."""
         _validate_nonce(nonce)
-        return AESGCM(key).encrypt(nonce, plaintext, aad)
+        return self._impl.encrypt(nonce, plaintext, aad)
 
     def decrypt(
         self,
-        key: bytes,
         nonce: bytes,
         ciphertext_with_tag: bytes,
         aad: bytes | None = None,
@@ -103,12 +119,11 @@ class AesGcmCipher:
         :class:`~guardiabox.core.exceptions.DecryptionError` so callers never
         have to import ``cryptography.exceptions`` to discriminate failures.
         """
-        _validate_key(key)
         _validate_nonce(nonce)
         if len(ciphertext_with_tag) < AES_GCM_TAG_BYTES:
             raise DecryptionError("ciphertext shorter than the AES-GCM tag")
         try:
-            return AESGCM(key).decrypt(nonce, ciphertext_with_tag, aad)
+            return self._impl.decrypt(nonce, ciphertext_with_tag, aad)
         except InvalidTag as exc:
             raise DecryptionError("AES-GCM authentication failed") from exc
 

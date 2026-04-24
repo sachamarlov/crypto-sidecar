@@ -292,10 +292,15 @@ def test_decrypt_weak_kdf_params_exits_65(runner: CliRunner, workdir: Path) -> N
     assert "kdf" in result.stderr.lower()
 
 
-def test_decrypt_corrupted_after_header_exits_data_or_auth(
-    runner: CliRunner, workdir: Path
-) -> None:
-    """A container whose header parses but ciphertext is truncated mid-chunk."""
+def test_decrypt_corrupted_after_header_exits_auth_failed(runner: CliRunner, workdir: Path) -> None:
+    """Post-header corruption must route through the anti-oracle branch.
+
+    Fix-1.U -- prior to ADR-0015 a truncated ciphertext could surface
+    as ``CorruptedContainerError`` (exit 65) or ``DecryptionError``
+    (exit 2), which let an attacker tell "truncated" apart from
+    "wrong password". The test used to accept both exit codes; it now
+    asserts AUTH_FAILED strictly, matching the post-KDF contract.
+    """
     source = workdir / "plain.bin"
     source.write_bytes(b"short payload")
     enc = runner.invoke(
@@ -306,18 +311,15 @@ def test_decrypt_corrupted_after_header_exits_data_or_auth(
     assert enc.exit_code == ExitCode.OK
     crypt = workdir / "plain.bin.crypt"
     raw = crypt.read_bytes()
-    # Keep the 40-byte PBKDF2 header, then append only 5 bytes of ciphertext —
-    # shorter than the 16-byte tag. That tears at the decoder.
+    # Keep the 40-byte PBKDF2 header, then append only 5 bytes of ciphertext --
+    # shorter than the 16-byte tag. That tears at the decoder, post-KDF.
     crypt.write_bytes(raw[:40] + b"\x00" * 5)
     result = runner.invoke(
         app,
         ["decrypt", "plain.bin.crypt", "--password-stdin"],
         input=f"{STRONG_PASSWORD}\n",
     )
-    # Either the stream is rejected as corrupted (data error 65) or
-    # decryption fails authentication (2) — both are acceptable for a
-    # post-header tear. The important property is that the CLI never exits 0.
-    assert result.exit_code in {ExitCode.DATA_ERROR, ExitCode.AUTH_FAILED}
+    assert result.exit_code == ExitCode.AUTH_FAILED, result.stderr
 
 
 # ---------------------------------------------------------------------------

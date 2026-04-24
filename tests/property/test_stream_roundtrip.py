@@ -5,6 +5,9 @@ chunked AEAD format. Running them with a fixed AES key (no KDF) lets
 Hypothesis generate hundreds of cases per second — the 600 000-iteration
 PBKDF2 derivation that dominates the ``encrypt_file`` / ``decrypt_file``
 runtime never fires here.
+
+Since Fix-1.P the cipher is key-bound: we build one
+``AesGcmCipher(_KEY)`` per test and reuse it for every chunk.
 """
 
 from __future__ import annotations
@@ -37,12 +40,11 @@ _AAD_PREFIX = b"FAKE-HEADER-BYTES-FOR-TESTS"
 @settings(max_examples=200, deadline=None, suppress_health_check=[HealthCheck.data_too_large])
 def test_stream_roundtrip_any_bytes(payload: bytes) -> None:
     """Round-trip of an arbitrary byte-string through the chunk pipeline."""
-    cipher = AesGcmCipher()
+    cipher = AesGcmCipher(_KEY)
     buf = BytesIO()
     _encrypt_stream(
         chunks=_split_message(payload, DEFAULT_CHUNK_BYTES),
         cipher=cipher,
-        key=_KEY,
         base_nonce=_BASE_NONCE,
         aad_prefix=_AAD_PREFIX,
         out=buf,
@@ -52,7 +54,6 @@ def test_stream_roundtrip_any_bytes(payload: bytes) -> None:
         _decrypt_stream_plaintext(
             raw_in=buf,
             cipher=cipher,
-            key=_KEY,
             base_nonce=_BASE_NONCE,
             aad_prefix=_AAD_PREFIX,
             chunk_bytes=DEFAULT_CHUNK_BYTES,
@@ -69,12 +70,11 @@ def test_stream_roundtrip_any_bytes(payload: bytes) -> None:
 @settings(max_examples=40, deadline=None, suppress_health_check=[HealthCheck.data_too_large])
 def test_stream_bit_flip_anywhere_rejects(payload: bytes, flip_index: int) -> None:
     """Flipping any byte of the ciphertext invalidates the AEAD."""
-    cipher = AesGcmCipher()
+    cipher = AesGcmCipher(_KEY)
     buf = BytesIO()
     _encrypt_stream(
         chunks=_split_message(payload, DEFAULT_CHUNK_BYTES),
         cipher=cipher,
-        key=_KEY,
         base_nonce=_BASE_NONCE,
         aad_prefix=_AAD_PREFIX,
         out=buf,
@@ -95,7 +95,6 @@ def test_stream_bit_flip_anywhere_rejects(payload: bytes, flip_index: int) -> No
             _decrypt_stream_plaintext(
                 raw_in=tampered,
                 cipher=cipher,
-                key=_KEY,
                 base_nonce=_BASE_NONCE,
                 aad_prefix=_AAD_PREFIX,
                 chunk_bytes=DEFAULT_CHUNK_BYTES,
@@ -121,12 +120,11 @@ def test_stream_truncation_always_rejects(payload_size: int) -> None:
     in the chunk AAD (cf. ADR-0014).
     """
     payload = secrets.token_bytes(payload_size)
-    cipher = AesGcmCipher()
+    cipher = AesGcmCipher(_KEY)
     buf = BytesIO()
     _encrypt_stream(
         chunks=_split_message(payload, DEFAULT_CHUNK_BYTES),
         cipher=cipher,
-        key=_KEY,
         base_nonce=_BASE_NONCE,
         aad_prefix=_AAD_PREFIX,
         out=buf,
@@ -151,7 +149,6 @@ def test_stream_truncation_always_rejects(payload_size: int) -> None:
             _decrypt_stream_plaintext(
                 raw_in=tampered,
                 cipher=cipher,
-                key=_KEY,
                 base_nonce=_BASE_NONCE,
                 aad_prefix=_AAD_PREFIX,
                 chunk_bytes=DEFAULT_CHUNK_BYTES,

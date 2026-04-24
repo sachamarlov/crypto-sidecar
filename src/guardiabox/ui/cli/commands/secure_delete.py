@@ -19,6 +19,7 @@ import typer
 
 from guardiabox.core.secure_delete import (
     DEFAULT_OVERWRITE_PASSES,
+    MAX_OVERWRITE_PASSES,
     SecureDeleteMethod,
     secure_delete,
 )
@@ -48,7 +49,7 @@ def secure_delete_command(
         DEFAULT_OVERWRITE_PASSES,
         "--passes",
         min=1,
-        max=35,
+        max=MAX_OVERWRITE_PASSES,
         help="Nombre de passes d'écrasement (zéro / un / aléatoire en cycle).",
     ),
     no_confirm: bool = typer.Option(
@@ -82,15 +83,17 @@ def _dispatch(
     ssd = is_ssd(safe)
     if ssd is True:
         _warn_ssd(no_confirm=no_confirm)
+    elif ssd is None:
+        _warn_unknown_media(no_confirm=no_confirm)
 
-    if method is _MethodChoice.AUTO:
-        # Until crypto-erase lands (Phase B2), 'auto' always falls back to
-        # overwrite — we keep the flag so the future extension is seamless.
-        resolved_method = SecureDeleteMethod.OVERWRITE_DOD
-    else:
-        resolved_method = SecureDeleteMethod.OVERWRITE_DOD
-
-    secure_delete(safe, method=resolved_method, passes=passes)
+    # Until crypto-erase ships (Phase B2, needs the keystore from spec
+    # 000-multi-user), both 'auto' and 'overwrite' route through the DoD
+    # overwrite path. The ``--method`` surface is kept so Phase B2 can
+    # add CRYPTO_ERASE without breaking the CLI contract: 'auto' will
+    # then pick OVERWRITE on HDD and CRYPTO_ERASE on SSD. The ``method``
+    # argument is silently ignored today -- that is intentional.
+    _ = method
+    secure_delete(safe, method=SecureDeleteMethod.OVERWRITE_DOD, passes=passes)
 
 
 def _warn_ssd(*, no_confirm: bool) -> None:
@@ -99,6 +102,26 @@ def _warn_ssd(*, no_confirm: bool) -> None:
         "best-effort sur mémoire flash (NIST SP 800-88r2 §5.2). L'effacement "
         "cryptographique (crypto-erase) sera disponible après l'implémentation "
         "de la base utilisateurs (spec 000-multi-user)."
+    )
+    typer.echo(msg, err=True)
+    if no_confirm:
+        return
+    if not typer.confirm("Poursuivre l'écrasement quand même ?", default=False):
+        raise typer.Exit(code=ExitCode.GENERIC)
+
+
+def _warn_unknown_media(*, no_confirm: bool) -> None:
+    """Conservative fallback when the platform probe can't decide.
+
+    NIST SP 800-88r2 §5 recommends presuming flash when the media type
+    is uncertain: overwrite offers a weaker guarantee than on rotational
+    storage, so the user must opt in rather than get a false assurance.
+    """
+    msg = (
+        "Attention : le type de support n'a pas pu être identifié. Par prudence "
+        "nous le traitons comme de la mémoire flash (NIST SP 800-88r2). "
+        "L'écrasement n'est donc qu'un effort best-effort ; l'effacement "
+        "cryptographique (crypto-erase) arrivera avec spec 000-multi-user."
     )
     typer.echo(msg, err=True)
     if no_confirm:

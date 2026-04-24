@@ -157,15 +157,21 @@ every supported platform:
 
 ## 7. Secure deletion
 
-- **HDD**: 3-pass overwrite per DoD 5220.22-M (zero, one, random) followed by
-  `unlink`. Effective on spinning rust.
-- **SSD**: cryptographic erase. The file's data-encryption key is destroyed
-  (zero-filled in memory and overwritten in the keystore), making the
-  ciphertext computationally unrecoverable. The container file itself is then
-  unlinked. NIST SP 800-88r2 endorses this approach because wear-levelling
-  defeats overwrite on flash media.
-- The user picks the strategy at the API; the GUI auto-detects HDD vs SSD via
-  the OS (`fsutil` on Windows) and recommends the appropriate one.
+- **HDD — shipped (spec 004 Phase B1)**: 3-pass overwrite per DoD
+  5220.22-M (zero, one, random) followed by `unlink`. Effective on
+  spinning rust. Cross-platform SSD detection via `fileio.platform.is_ssd`
+  (Windows `IOCTL_STORAGE_QUERY_PROPERTY`, Linux
+  `/sys/block/<dev>/queue/rotational`, macOS `diskutil info -plist`).
+- **SSD — planned (spec 004 Phase B2, after the keystore lands with
+  spec 000-multi-user)**: cryptographic erase will destroy the file's
+  data-encryption key in the keystore (zero-fill in memory + rewrite
+  the row), making the ciphertext computationally unrecoverable. Until
+  the keystore exists, `secure-delete` on SSD falls back to overwrite
+  with a NIST SP 800-88r2 warning that wear-levelling limits its
+  effectiveness.
+- The user picks the strategy at the CLI (`--method auto|overwrite`)
+  and an explicit confirmation prompt fires on detected SSD (bypassable
+  with `--no-confirm` for scripts).
 
 - **Source**: NIST SP 800-88 Rev 2 — https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-88r2.pdf
 

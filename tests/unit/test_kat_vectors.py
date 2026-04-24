@@ -47,7 +47,7 @@ def test_aes_gcm_kat_case_13_zero_plaintext() -> None:
     aad: bytes | None = None
 
     # Wrapper must produce the same ciphertext+tag as the primitive does.
-    ct_wrapper = AesGcmCipher().encrypt(key, nonce, b"", aad)
+    ct_wrapper = AesGcmCipher(key).encrypt(nonce, b"", aad)
     ct_primitive = AESGCM(key).encrypt(nonce, b"", aad)
     assert ct_wrapper == ct_primitive
 
@@ -66,11 +66,12 @@ def test_aes_gcm_kat_case_14_zero_block_plaintext() -> None:
     nonce = bytes(12)
     plaintext = bytes(16)
 
-    ct = AesGcmCipher().encrypt(key, nonce, plaintext)
+    cipher = AesGcmCipher(key)
+    ct = cipher.encrypt(nonce, plaintext)
     expected = bytes.fromhex("cea7403d4d606b6e074ec5d3baf39d18d0d1c8a799996bf0265b98b5d48ab919")
     assert ct == expected
     # And we can decrypt back.
-    assert AesGcmCipher().decrypt(key, nonce, ct) == plaintext
+    assert cipher.decrypt(nonce, ct) == plaintext
 
 
 def test_aes_gcm_kat_case_15_with_iv_and_plaintext() -> None:
@@ -90,7 +91,7 @@ def test_aes_gcm_kat_case_15_with_iv_and_plaintext() -> None:
         "c5f61e6393ba7a0abcc9f662898015ad"
         "b094dac5d93471bdec1a502270e3cc6c"
     )
-    assert AesGcmCipher().encrypt(key, nonce, plaintext) == expected
+    assert AesGcmCipher(key).encrypt(nonce, plaintext) == expected
 
 
 # ---------------------------------------------------------------------------

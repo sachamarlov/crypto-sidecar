@@ -34,14 +34,34 @@ KDF_ID_ARGON2ID: Final[int] = 0x02
 PBKDF2_MIN_ITERATIONS: Final[int] = 600_000
 """OWASP 2026 Password Storage CS — FIPS-140-compliant iteration floor."""
 
+PBKDF2_MAX_ITERATIONS: Final[int] = 10_000_000
+"""Upper cap on PBKDF2 iterations. A crafted ``.crypt`` with a huge
+``uint32`` iteration count would otherwise lock a decoder for hours of
+CPU before the tag check fails. 10 M iterations bound the worst case
+to a few tens of seconds on a slow host — far beyond any legitimate
+setting, well below the 4 billion ceiling of a ``uint32`` encoding."""
+
 ARGON2_MIN_MEMORY_KIB: Final[int] = 64 * 1024
 """OWASP 2026 — minimum memory cost for Argon2id (64 MiB)."""
+
+ARGON2_MAX_MEMORY_KIB: Final[int] = 1 * 1024 * 1024
+"""Upper cap on Argon2id memory cost: 1 GiB. Prevents a crafted header
+that requests 4 TiB (raw ``uint32`` max) from triggering an OOM or
+multi-minute swap storm before authentication fails."""
 
 ARGON2_MIN_TIME_COST: Final[int] = 3
 """OWASP 2026 — minimum time cost (iterations) for Argon2id."""
 
+ARGON2_MAX_TIME_COST: Final[int] = 20
+"""Upper cap on Argon2id time cost. Guards against a crafted parameter
+blob that drags out authentication unreasonably."""
+
 ARGON2_MIN_PARALLELISM: Final[int] = 1
 """OWASP 2026 — minimum parallelism for Argon2id."""
+
+ARGON2_MAX_PARALLELISM: Final[int] = 16
+"""Upper cap on Argon2id parallelism. Any reasonable host is covered;
+higher values are rejected to bound thread creation on a crafted header."""
 
 KDF_PARAMS_MAX_BYTES: Final[int] = 4096
 """Upper bound on the serialised KDF-params blob. Defence against DoS-sized
@@ -64,6 +84,15 @@ SALT_BYTES: Final[int] = 16
 
 DEFAULT_CHUNK_BYTES: Final[int] = 64 * 1024
 """Default chunk size for streaming encryption / decryption."""
+
+MAX_IN_MEMORY_MESSAGE_BYTES: Final[int] = 10 * 1024 * 1024
+"""Upper bound for the ``--message`` / ``decrypt_message`` in-memory path.
+
+``decrypt_message`` accumulates the decoded plaintext in a ``bytearray``
+so the caller can print or forward it in one go. Without a bound a
+crafted or accidental 10 GiB ``.crypt`` would OOM the process. Above
+this threshold callers must use the file-based ``decrypt_file``
+API, which streams to disk."""
 
 # ---------------------------------------------------------------------------
 # File extensions

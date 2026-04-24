@@ -26,9 +26,12 @@ import typer
 from guardiabox.core.exceptions import (
     CorruptedContainerError,
     DecryptionError,
+    DestinationAlreadyExistsError,
+    DestinationCollidesWithSourceError,
     GuardiaBoxError,
     IntegrityError,
     InvalidContainerError,
+    MessageTooLargeError,
     PathTraversalError,
     SymlinkEscapeError,
     UnknownKdfError,
@@ -76,12 +79,16 @@ class ExitCode(IntEnum):
 ANTI_ORACLE_MESSAGE: str = "Échec du déchiffrement : mot de passe incorrect ou données altérées."
 
 
-def exit_for(exc: BaseException) -> NoReturn:
+def exit_for(exc: BaseException) -> NoReturn:  # noqa: PLR0912 -- wide dispatch by design
     """Emit the localised message for ``exc`` and exit with the mapped code.
 
     Never returns — always raises :class:`typer.Exit`. Pass-through for
     already-wrapped :class:`typer.Exit` so a caller that already
     requested a specific exit code keeps it.
+
+    The branch count is intentional: each GuardiaBox exception class
+    maps to a distinct French-language message and POSIX exit code; a
+    lookup dict would hide the per-branch wording that tests read.
     """
     if isinstance(exc, typer.Exit):
         raise exc
@@ -96,6 +103,24 @@ def exit_for(exc: BaseException) -> NoReturn:
     if isinstance(exc, (PathTraversalError, SymlinkEscapeError)):
         typer.echo(f"Chemin refusé : {exc}", err=True)
         raise typer.Exit(code=ExitCode.PATH_OR_FILE) from exc
+
+    if isinstance(exc, DestinationCollidesWithSourceError):
+        typer.echo(
+            f"Destination identique à la source (écrasement refusé) : {exc}",
+            err=True,
+        )
+        raise typer.Exit(code=ExitCode.USAGE) from exc
+
+    if isinstance(exc, DestinationAlreadyExistsError):
+        typer.echo(
+            f"Destination déjà existante (utiliser --force pour écraser) : {exc}",
+            err=True,
+        )
+        raise typer.Exit(code=ExitCode.USAGE) from exc
+
+    if isinstance(exc, MessageTooLargeError):
+        typer.echo(f"Message trop volumineux : {exc}", err=True)
+        raise typer.Exit(code=ExitCode.USAGE) from exc
 
     if isinstance(exc, FileNotFoundError):
         typer.echo(f"Fichier introuvable : {exc}", err=True)
@@ -141,17 +166,43 @@ def read_password(*, stdin: bool, confirm: bool = False, prompt: str = "Mot de p
     Stripping is conservative: only the trailing newline / carriage return
     of the stdin line is removed, other whitespace is kept verbatim so a
     legitimate trailing-space password is preserved.
+
+    An empty password is refused fail-loud instead of silently falling
+    through ``read_password`` then being caught much later by the
+    policy layer. A non-TTY stdin without ``--password-stdin`` almost
+    always means "the user piped nothing and typer will fail with a
+    confusing error"; we surface a clear message instead.
     """
     if stdin:
         raw = sys.stdin.readline()
         if raw.endswith("\r\n"):
-            return raw[:-2]
-        if raw.endswith("\n"):
-            return raw[:-1]
-        return raw
+            password = raw[:-2]
+        elif raw.endswith("\n"):
+            password = raw[:-1]
+        else:
+            password = raw
+        if not password:
+            typer.echo(
+                "Erreur : mot de passe vide reçu sur stdin (--password-stdin).",
+                err=True,
+            )
+            raise typer.Exit(code=ExitCode.USAGE)
+        return password
+
+    if not sys.stdin.isatty():
+        typer.echo(
+            "Erreur : stdin n'est pas un terminal. Utiliser --password-stdin "
+            "et fournir le mot de passe par un pipe.",
+            err=True,
+        )
+        raise typer.Exit(code=ExitCode.USAGE)
+
     result: str = typer.prompt(
         prompt,
         hide_input=True,
         confirmation_prompt=confirm,
     )
+    if not result:
+        typer.echo("Erreur : mot de passe vide.", err=True)
+        raise typer.Exit(code=ExitCode.USAGE)
     return result

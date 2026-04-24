@@ -24,17 +24,23 @@ from typing import IO
 
 __all__ = [
     "DEFAULT_OVERWRITE_PASSES",
+    "MAX_OVERWRITE_PASSES",
     "SecureDeleteMethod",
     "secure_delete",
 ]
 
-#: Minimum number of overwrite passes exposed by the CLI. DoD 5220.22-M
-#: specifies three — zero, one, random. Going higher is permitted but
-#: offers diminishing returns on modern drives.
+#: DoD 5220.22-M specifies three passes (zero, one, random). Going higher
+#: is permitted but offers diminishing returns on modern drives.
 _DOD_PATTERN_ZERO: bytes = b"\x00"
 _DOD_PATTERN_ONE: bytes = b"\xff"
 
 DEFAULT_OVERWRITE_PASSES: int = 3
+
+#: Upper bound on ``passes``. 35 matches the Gutmann "paranoid" maximum
+#: and acts as a DoS guard: a caller (or a crafted CLI argument) that
+#: requested ``passes=10**9`` would otherwise stall the host for days
+#: writing 64 KiB blocks in a tight loop.
+MAX_OVERWRITE_PASSES: int = 35
 
 #: Block size used to fill each pass. 64 KiB balances syscall count against
 #: memory footprint without breaking small-file cases (the write is capped
@@ -74,11 +80,13 @@ def secure_delete(
     Raises:
         FileNotFoundError: If ``path`` does not exist.
         IsADirectoryError: If ``path`` is a directory.
-        ValueError: If ``passes`` is not strictly positive, or if the
-            method is not recognised.
+        ValueError: If ``passes`` is outside ``[1, MAX_OVERWRITE_PASSES]``,
+            or if the method is not recognised.
     """
     if passes < 1:
         raise ValueError(f"passes must be >= 1, got {passes}")
+    if passes > MAX_OVERWRITE_PASSES:
+        raise ValueError(f"passes must be <= {MAX_OVERWRITE_PASSES}, got {passes}")
     if method is not SecureDeleteMethod.OVERWRITE_DOD:
         raise ValueError(f"unsupported method: {method!r}")
 
@@ -122,16 +130,14 @@ def _overwrite_dod(path: Path, *, passes: int) -> None:
 def _fill_in_place(fp: IO[bytes], *, size: int, pattern: bytes) -> None:
     r"""Write ``pattern`` (1 byte) over ``size`` bytes from offset 0.
 
-    Uses a pre-allocated bytes block to minimise allocation churn. When
-    the pattern is ``\xff`` (pass 1) or ``\x00`` (pass 0) the block is
-    reused across calls; for random passes the caller re-seeds via
-    :func:`secrets.token_bytes` per chunk so the pass's random bytes
-    are never predictable from one chunk to the next.
+    Zero (``\x00``) and one (``\xff``) passes reuse the same fixed byte
+    via ``pattern * chunk_size``. Random passes pull a fresh block from
+    :func:`secrets.token_bytes` for every chunk, so the bytes on disk
+    are not predictable from one chunk to the next (DoD 5220.22-M pass
+    #3 intent).
     """
     fp.seek(0)
     written = 0
-    if pattern == b"":
-        raise ValueError("pattern must be non-empty")
     random_pass = pattern not in {_DOD_PATTERN_ZERO, _DOD_PATTERN_ONE}
     while written < size:
         chunk_size = min(_OVERWRITE_CHUNK_BYTES, size - written)

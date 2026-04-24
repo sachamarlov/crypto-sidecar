@@ -6,6 +6,7 @@ import pytest
 
 from guardiabox.core.exceptions import WeakPasswordError
 from guardiabox.security.password import (
+    MAX_LENGTH,
     MIN_LENGTH,
     MIN_ZXCVBN_SCORE,
     assert_strong,
@@ -77,3 +78,10 @@ def test_long_but_low_entropy_password_error_mentions_feedback() -> None:
     # Either the feedback text or the generic "low entropy" must appear.
     message = str(exc_info.value)
     assert "strength" in message
+
+
+def test_password_above_max_length_rejected_before_zxcvbn() -> None:
+    """Fix-1.L -- a huge input must fail fast before zxcvbn walks it."""
+    oversized = "A" * (MAX_LENGTH + 1)
+    with pytest.raises(WeakPasswordError, match="maximum"):
+        assert_strong(oversized)

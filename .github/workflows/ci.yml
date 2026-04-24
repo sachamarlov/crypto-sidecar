@@ -73,8 +73,27 @@ jobs:
           git ls-files -z | xargs -0 uv run detect-secrets-hook \
             --baseline .secrets.baseline
 
-      - name: Run tests
-        run: uv run pytest --maxfail=1
+      - name: Run tests (unit + integration + property, excl. perf)
+        # Perf benchmarks run in their own step below so CI reports show
+        # NFR-1 / NFR-2 enforcement as a distinct line instead of hiding
+        # it inside the general test summary.
+        run: uv run pytest --maxfail=1 --ignore=tests/perf
+
+      - name: Run performance benchmarks (NFR-1 AES-GCM, NFR-2 KDF)
+        # Floors live in tests/perf/test_bench.py: >= 50 MiB/s AES-GCM
+        # streaming (NFR-1 target is 100 MiB/s, CI band is lenient for
+        # shared runners), KDF derivation in [10 ms, 5 s] (NFR-2).
+        # A regression below either floor fails the build -- this is
+        # the only CI job that catches a perf cliff before merge.
+        run: uv run pytest tests/perf -v --no-cov
+
+      - name: Coverage gates (core & security >= 95%)
+        # Per-package floor from docs/CONVENTIONS.md section 13.
+        # The global >= 80% gate is already enforced by --cov-fail-under
+        # in pyproject.toml; this script adds the stricter contract for
+        # crypto-sensitive modules by reading coverage.xml and applying
+        # the per-path threshold.
+        run: uv run python scripts/check_coverage_gates.py
 
       - name: Upload coverage
         if: matrix.os == 'ubuntu-latest' && always()

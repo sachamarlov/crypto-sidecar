@@ -63,8 +63,41 @@ class SymlinkEscapeError(GuardiaBoxError):
     """A symbolic link points outside the allowed root directory."""
 
 
+class DestinationCollidesWithSourceError(GuardiaBoxError):
+    """The destination path resolves to the same file as the source.
+
+    Raised by encrypt/decrypt operations to prevent destructive
+    in-place overwrites. On Linux, ``os.replace`` is silent about the
+    collision — without this guard, ``decrypt_file(foo.crypt, dest=foo.crypt)``
+    writes the plaintext over the ciphertext and loses it forever.
+    """
+
+
+class DestinationAlreadyExistsError(GuardiaBoxError):
+    """The destination path points at an existing file.
+
+    Raised by encrypt/decrypt when the caller did not explicitly request
+    an overwrite (``force=False``). ``os.replace`` silently overwrites
+    files on every platform; this guard surfaces the collision so users
+    can opt in (``--force``) or pick a different destination.
+    """
+
+
 # ---- Password validation ---------------------------------------------------
 
 
 class WeakPasswordError(GuardiaBoxError):
     """The password fails the configured strength policy (zxcvbn score)."""
+
+
+# ---- In-memory message bounds ----------------------------------------------
+
+
+class MessageTooLargeError(GuardiaBoxError):
+    """The plaintext / ciphertext message exceeds the in-memory limit.
+
+    Raised by :func:`encrypt_message` / :func:`decrypt_message` when the
+    payload would otherwise be loaded entirely into a ``bytearray``.
+    Callers must route larger payloads through the file-based
+    :func:`encrypt_file` / :func:`decrypt_file` API.
+    """

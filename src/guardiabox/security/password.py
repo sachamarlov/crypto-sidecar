@@ -10,12 +10,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 import math
 from typing import Any, Final
+import unicodedata
 
 from zxcvbn import zxcvbn
 
 from guardiabox.core.exceptions import WeakPasswordError
 
 __all__ = [
+    "MAX_LENGTH",
     "MIN_LENGTH",
     "MIN_ZXCVBN_SCORE",
     "StrengthReport",
@@ -26,6 +28,15 @@ __all__ = [
 
 MIN_LENGTH: Final[int] = 12
 MIN_ZXCVBN_SCORE: Final[int] = 3
+MAX_LENGTH: Final[int] = 1024
+"""Hard cap on the password length.
+
+Rationale: zxcvbn's entropy estimation walks the string and can spend
+minutes on a multi-MB input, and a password that big is almost
+certainly a user typing into the wrong field. 1024 characters comfortably
+covers every realistic passphrase (XKCD-style ``correct horse battery
+staple`` sentences, long diceware phrases) while refusing DoS-shaped
+garbage before any KDF work happens."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,7 +56,10 @@ def evaluate(password: str) -> StrengthReport:
     estimate, representative of an attacker with a realistic Argon2id-class
     KDF budget. Entropy is derived from ``log2(guesses)``.
     """
-    raw: dict[str, Any] = zxcvbn(password)
+    # Unicode NFC normalisation matches what the encrypt/decrypt derive
+    # path does before UTF-8 encoding; scoring a different form here than
+    # the one used for key derivation would be inconsistent.
+    raw: dict[str, Any] = zxcvbn(unicodedata.normalize("NFC", password))
     score: int = int(raw["score"])
     guesses: float = max(float(raw.get("guesses", 1)), 1.0)
     crack_times: dict[str, Any] = raw.get("crack_times_seconds") or {}
@@ -61,6 +75,11 @@ def evaluate(password: str) -> StrengthReport:
 
 def assert_strong(password: str) -> None:
     """Raise :class:`WeakPasswordError` if the policy is not met."""
+    if len(password) > MAX_LENGTH:
+        # Fail fast before zxcvbn starts walking a multi-MB input.
+        raise WeakPasswordError(
+            f"password exceeds maximum of {MAX_LENGTH} characters (got {len(password)})"
+        )
     if len(password) < MIN_LENGTH:
         raise WeakPasswordError(
             f"password must be at least {MIN_LENGTH} characters (got {len(password)})"

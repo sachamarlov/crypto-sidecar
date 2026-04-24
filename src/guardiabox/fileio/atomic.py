@@ -6,7 +6,11 @@ The pattern: write to a temporary file in the same directory, fsync it, then
 
 Critical for the ``.crypt`` writer: a half-written ciphertext file would be
 indistinguishable from a corrupted one and could bias users into discarding
-intact backups.
+intact backups. Critical also for the ``decrypt`` path: if the user hits
+Ctrl+C mid-decrypt, the temp file may contain partial **plaintext**. The
+exception handler therefore **wipes** the temp file (single zero pass +
+fsync) before unlinking, so a local attacker reading raw sectors cannot
+recover the partial plaintext from the slack (Fix-1.N).
 """
 
 from __future__ import annotations
@@ -21,6 +25,7 @@ from typing import IO
 __all__ = ["atomic_write_bytes", "atomic_writer"]
 
 _TEMP_SUFFIX: str = ".tmp.gbox"
+_WIPE_BLOCK_BYTES: int = 64 * 1024
 
 
 def atomic_write_bytes(path: Path, data: bytes) -> None:
@@ -58,15 +63,63 @@ def atomic_writer(path: Path) -> Iterator[IO[bytes]]:
         io_obj.flush()
         os.fsync(io_obj.fileno())
         io_obj.close()
-        Path(tmp_path).replace(path)
+        try:
+            Path(tmp_path).replace(path)
+        except OSError as exc:
+            import errno
+
+            if exc.errno == errno.EXDEV:
+                msg = (
+                    f"destination '{path}' lives on a different filesystem "
+                    f"than the temp directory '{tmp_path.parent}'; atomic "
+                    "rename is impossible across volumes. Move the temp "
+                    "target (via TMPDIR / TMP) or point the output inside "
+                    "the same filesystem as the source."
+                )
+                raise OSError(errno.EXDEV, msg) from exc
+            raise
         _fsync_dir(path.parent)
-    except BaseException:
-        # Close then remove the temp file; never leave partial state behind.
+    except (KeyboardInterrupt, Exception):
+        # Close then wipe-unlink the temp file. On the decrypt path the
+        # temp may carry partial plaintext, so a plain unlink would leave
+        # that plaintext on disk until the blocks are overwritten by
+        # unrelated allocations. We overwrite with zeros + fsync before
+        # the unlink (Fix-1.N). Best-effort: swallow every OSError so we
+        # do not mask the original exception.
         with suppress(OSError):
             tmp.close()
-        with suppress(OSError):
-            tmp_path.unlink(missing_ok=True)
+        _best_effort_wipe_and_unlink(tmp_path)
         raise
+
+
+def _best_effort_wipe_and_unlink(path: Path) -> None:
+    """Overwrite ``path`` with zeros, fsync, then unlink.
+
+    Every filesystem / OS error is swallowed: the caller is already in an
+    exception path (rollback after Ctrl+C or a crypto failure) and must
+    not be masked by a secondary error during cleanup. Worst case the
+    temp file survives with its partial content — same outcome as the
+    pre-Fix-1.N behaviour, never worse.
+    """
+    try:
+        size = path.stat().st_size
+    except OSError:
+        size = 0
+    if size > 0:
+        try:
+            with path.open("r+b", buffering=0) as wipe_fp:
+                remaining = size
+                while remaining > 0:
+                    block = min(_WIPE_BLOCK_BYTES, remaining)
+                    wipe_fp.write(b"\x00" * block)
+                    remaining -= block
+                wipe_fp.flush()
+                with suppress(OSError):
+                    os.fsync(wipe_fp.fileno())
+        except OSError:
+            pass
+    with suppress(OSError):
+        path.unlink(missing_ok=True)
 
 
 def _fsync_dir(directory: Path) -> None:
@@ -77,10 +130,20 @@ def _fsync_dir(directory: Path) -> None:
     """
     if os.name != "posix":
         return
-    # ``os.O_DIRECTORY`` is POSIX-only; on Windows mypy does not know about it.
+    _fsync_dir_posix(directory)  # pragma: no cover -- POSIX-only branch
+
+
+def _fsync_dir_posix(directory: Path) -> None:  # pragma: no cover -- POSIX only
+    """POSIX-specific directory fsync.
+
+    Extracted into its own function so the coverage pragma sits once at
+    the function level instead of scattered across every statement. The
+    ``os.O_DIRECTORY`` flag is only defined on POSIX; ``getattr`` avoids
+    a static attribute lookup that mypy on Windows would flag.
+    """
     o_directory: int = getattr(os, "O_DIRECTORY", 0)
-    fd = os.open(str(directory), o_directory)  # pragma: no cover — POSIX only
-    try:  # pragma: no cover
-        os.fsync(fd)  # pragma: no cover
-    finally:  # pragma: no cover
-        os.close(fd)  # pragma: no cover
+    fd = os.open(str(directory), o_directory)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)

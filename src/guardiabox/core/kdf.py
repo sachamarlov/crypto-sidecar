@@ -13,8 +13,10 @@ container crafted with weaker parameters is rejected before a key is derived.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 import struct
+from types import MappingProxyType
 from typing import ClassVar, Self
 
 from argon2.low_level import Type, hash_secret_raw
@@ -22,11 +24,15 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
 from guardiabox.core.constants import (
+    ARGON2_MAX_MEMORY_KIB,
+    ARGON2_MAX_PARALLELISM,
+    ARGON2_MAX_TIME_COST,
     ARGON2_MIN_MEMORY_KIB,
     ARGON2_MIN_PARALLELISM,
     ARGON2_MIN_TIME_COST,
     KDF_ID_ARGON2ID,
     KDF_ID_PBKDF2_SHA256,
+    PBKDF2_MAX_ITERATIONS,
     PBKDF2_MIN_ITERATIONS,
     SALT_BYTES,
 )
@@ -41,12 +47,6 @@ __all__ = [
     "Pbkdf2Kdf",
     "kdf_for_id",
 ]
-
-#: Public registry mapping ``kdf_id`` bytes to the concrete KDF class.
-#: A new KDF is added by registering ``kdf_id → class`` here and implementing
-#: ``encode_params`` / ``decode_params``. The container layout itself needs
-#: no change (cf. ADR-0013). ``kdf_for_id`` uses this registry internally.
-KDF_REGISTRY: dict[int, type[Pbkdf2Kdf] | type[Argon2idKdf]] = {}
 
 _PBKDF2_PARAMS_STRUCT = struct.Struct("!I")  # iterations (4 bytes)
 _ARGON2_PARAMS_STRUCT = struct.Struct("!III")  # memory_kib | time_cost | parallelism
@@ -78,6 +78,13 @@ class Pbkdf2Kdf:
         if self.iterations < PBKDF2_MIN_ITERATIONS:
             raise WeakKdfParametersError(
                 f"PBKDF2 iterations {self.iterations} below floor {PBKDF2_MIN_ITERATIONS}"
+            )
+        if self.iterations > PBKDF2_MAX_ITERATIONS:
+            # Upper cap protects against a crafted ``.crypt`` that would
+            # otherwise lock the decoder for hours. The legitimate
+            # operating range is well inside this ceiling (see CRYPTO_DECISIONS §2).
+            raise WeakKdfParametersError(
+                f"PBKDF2 iterations {self.iterations} above ceiling {PBKDF2_MAX_ITERATIONS}"
             )
 
     def derive(self, password: bytes, salt: bytes, length: int) -> bytes:
@@ -121,13 +128,23 @@ class Argon2idKdf:
         violations: list[str] = []
         if self.memory_cost_kib < ARGON2_MIN_MEMORY_KIB:
             violations.append(f"memory_cost_kib {self.memory_cost_kib} < {ARGON2_MIN_MEMORY_KIB}")
+        if self.memory_cost_kib > ARGON2_MAX_MEMORY_KIB:
+            violations.append(
+                f"memory_cost_kib {self.memory_cost_kib} > {ARGON2_MAX_MEMORY_KIB} (ceiling)"
+            )
         if self.time_cost < ARGON2_MIN_TIME_COST:
             violations.append(f"time_cost {self.time_cost} < {ARGON2_MIN_TIME_COST}")
+        if self.time_cost > ARGON2_MAX_TIME_COST:
+            violations.append(f"time_cost {self.time_cost} > {ARGON2_MAX_TIME_COST} (ceiling)")
         if self.parallelism < ARGON2_MIN_PARALLELISM:
             violations.append(f"parallelism {self.parallelism} < {ARGON2_MIN_PARALLELISM}")
+        if self.parallelism > ARGON2_MAX_PARALLELISM:
+            violations.append(
+                f"parallelism {self.parallelism} > {ARGON2_MAX_PARALLELISM} (ceiling)"
+            )
         if violations:
             raise WeakKdfParametersError(
-                "Argon2id parameters below OWASP 2026 floor: " + "; ".join(violations)
+                "Argon2id parameters outside OWASP 2026 range: " + "; ".join(violations)
             )
 
     def derive(self, password: bytes, salt: bytes, length: int) -> bytes:
@@ -163,8 +180,21 @@ class Argon2idKdf:
         )
 
 
-KDF_REGISTRY[KDF_ID_PBKDF2_SHA256] = Pbkdf2Kdf
-KDF_REGISTRY[KDF_ID_ARGON2ID] = Argon2idKdf
+#: Public registry mapping ``kdf_id`` bytes to the concrete KDF class.
+#: A new KDF is added by adding ``kdf_id -> class`` to the backing
+#: dict below and implementing ``encode_params`` / ``decode_params``.
+#: The container layout itself needs no change (cf. ADR-0013).
+#:
+#: ``KDF_REGISTRY`` is a read-only :class:`MappingProxyType` view, so
+#: a rogue module cannot monkey-patch a fake KDF into the dispatch at
+#: runtime (defence in depth — see Fix-1.O).
+_KDF_REGISTRY_IMPL: dict[int, type[Pbkdf2Kdf] | type[Argon2idKdf]] = {
+    KDF_ID_PBKDF2_SHA256: Pbkdf2Kdf,
+    KDF_ID_ARGON2ID: Argon2idKdf,
+}
+KDF_REGISTRY: Mapping[int, type[Pbkdf2Kdf] | type[Argon2idKdf]] = MappingProxyType(
+    _KDF_REGISTRY_IMPL,
+)
 
 
 def kdf_for_id(kdf_id: int, params: bytes) -> Pbkdf2Kdf | Argon2idKdf:

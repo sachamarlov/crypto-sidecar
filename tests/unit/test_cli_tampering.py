@@ -143,24 +143,28 @@ def test_tampering_tag_byte_rejected_as_auth_failure(
     assert _decrypt(runner) == ExitCode.AUTH_FAILED
 
 
-def test_none_of_the_tamperings_produce_a_decrypt_file(
-    runner: CliRunner, workdir: Path, sample_crypt: Path
+@pytest.mark.parametrize("offset", [0, 4, 5, 8, 12, 28, 40, -1])
+def test_tampering_never_produces_a_decrypt_file(
+    runner: CliRunner, workdir: Path, sample_crypt: Path, offset: int
 ) -> None:
-    """Exhaustive parametrisation: whichever region we touch, the command
-    must never create a ``.decrypt`` file (anti-partial-output discipline)."""
-    offsets = [0, 4, 5, 8, 12, 28, 40, -1]
-    for offset in offsets:
-        # Reset container before each mutation by re-encrypting.
-        _flip_byte(sample_crypt, offset=offset)
-        result = runner.invoke(
-            app,
-            ["decrypt", "sample.bin.crypt", "--password-stdin"],
-            input=f"{STRONG_PASSWORD}\n",
-        )
-        assert result.exit_code != ExitCode.OK
-        assert not (workdir / "sample.bin.decrypt").exists(), (
-            f"Tampering at offset {offset} produced a leaking .decrypt file"
-        )
-        # Restore the byte so the next iteration operates on a recoverable
-        # baseline (flipping twice = identity for XOR 0x01).
-        _flip_byte(sample_crypt, offset=offset)
+    """Whichever region we touch, the command must never create a
+    ``.decrypt`` file (anti-partial-output discipline).
+
+    Fix-1.U -- the previous implementation ran every offset inside a
+    single test with a manual XOR restore between iterations, which
+    coupled the cases and let a silent regression at offset N taint the
+    run for offset N+1. ``@pytest.mark.parametrize`` gives each offset
+    its own fresh fixture (the ``sample_crypt`` path is re-encrypted
+    per test via the fixture graph), so failures are isolated and the
+    XOR-reset dance is no longer needed.
+    """
+    _flip_byte(sample_crypt, offset=offset)
+    result = runner.invoke(
+        app,
+        ["decrypt", "sample.bin.crypt", "--password-stdin"],
+        input=f"{STRONG_PASSWORD}\n",
+    )
+    assert result.exit_code != ExitCode.OK
+    assert not (workdir / "sample.bin.decrypt").exists(), (
+        f"Tampering at offset {offset} produced a leaking .decrypt file"
+    )
