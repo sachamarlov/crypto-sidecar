@@ -38,6 +38,12 @@ def decrypt_command(
         "--password-stdin",
         help="Lire le mot de passe depuis stdin (pas de prompt interactif).",
     ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        "-f",
+        help="Écraser la destination si elle existe déjà.",
+    ),
 ) -> None:
     """Déchiffrer un fichier ``.crypt`` vers son contenu d'origine."""
     try:
@@ -46,6 +52,7 @@ def decrypt_command(
             output=output,
             to_stdout=to_stdout,
             password_stdin=password_stdin,
+            force=force,
         )
     except (Exception, KeyboardInterrupt) as exc:
         exit_for(exc)
@@ -60,6 +67,7 @@ def _dispatch(
     output: Path | None,
     to_stdout: bool,
     password_stdin: bool,
+    force: bool,
 ) -> Path | None:
     cwd = Path.cwd().resolve()
     safe_source = resolve_within(path, cwd)
@@ -75,4 +83,4 @@ def _dispatch(
         sys.stdout.flush()
         return None
 
-    return decrypt_file(safe_source, password, root=cwd, dest=output)
+    return decrypt_file(safe_source, password, root=cwd, dest=output, force=force)

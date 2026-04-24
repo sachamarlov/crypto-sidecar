@@ -23,6 +23,7 @@ from guardiabox.core.constants import (
 )
 from guardiabox.core.exceptions import (
     DecryptionError,
+    DestinationAlreadyExistsError,
     DestinationCollidesWithSourceError,
     MessageTooLargeError,
     PathTraversalError,
@@ -302,6 +303,41 @@ def test_encrypt_message_refuses_payload_above_limit(tmp_path: Path) -> None:
     with pytest.raises(MessageTooLargeError):
         encrypt_message(oversized, STRONG_PASSWORD, root=tmp_path, dest=dest, kdf=Pbkdf2Kdf())
     assert not dest.exists()
+
+
+def test_encrypt_refuses_existing_dest_without_force(tmp_path: Path) -> None:
+    """Fix-1.L -- dest already there, force=False -> DestinationAlreadyExists."""
+    source = tmp_path / "plain.bin"
+    source.write_bytes(b"payload")
+    dest = tmp_path / "plain.bin.crypt"
+    dest.write_bytes(b"pre-existing content")
+    with pytest.raises(DestinationAlreadyExistsError):
+        encrypt_file(source, STRONG_PASSWORD, root=tmp_path, kdf=Pbkdf2Kdf(), dest=dest)
+    assert dest.read_bytes() == b"pre-existing content"
+
+
+def test_encrypt_overwrites_with_force_true(tmp_path: Path) -> None:
+    """Fix-1.L -- force=True overwrites an existing dest."""
+    source = tmp_path / "plain.bin"
+    source.write_bytes(b"new payload")
+    dest = tmp_path / "plain.bin.crypt"
+    dest.write_bytes(b"pre-existing content")
+    result = encrypt_file(
+        source, STRONG_PASSWORD, root=tmp_path, kdf=Pbkdf2Kdf(), dest=dest, force=True
+    )
+    assert result.read_bytes().startswith(b"GBOX")
+
+
+def test_decrypt_refuses_existing_dest_without_force(tmp_path: Path) -> None:
+    """Fix-1.L -- the same guard applies to decrypt."""
+    source = tmp_path / "plain.bin"
+    source.write_bytes(b"payload")
+    enc = encrypt_file(source, STRONG_PASSWORD, root=tmp_path, kdf=Pbkdf2Kdf())
+    dest = tmp_path / "out.bin"
+    dest.write_bytes(b"do not overwrite")
+    with pytest.raises(DestinationAlreadyExistsError):
+        decrypt_file(enc, STRONG_PASSWORD, root=tmp_path, dest=dest)
+    assert dest.read_bytes() == b"do not overwrite"
 
 
 def test_decrypt_message_refuses_source_above_limit(tmp_path: Path) -> None:

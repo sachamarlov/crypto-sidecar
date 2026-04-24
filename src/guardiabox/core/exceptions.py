@@ -73,6 +73,16 @@ class DestinationCollidesWithSourceError(GuardiaBoxError):
     """
 
 
+class DestinationAlreadyExistsError(GuardiaBoxError):
+    """The destination path points at an existing file.
+
+    Raised by encrypt/decrypt when the caller did not explicitly request
+    an overwrite (``force=False``). ``os.replace`` silently overwrites
+    files on every platform; this guard surfaces the collision so users
+    can opt in (``--force``) or pick a different destination.
+    """
+
+
 # ---- Password validation ---------------------------------------------------
 
 

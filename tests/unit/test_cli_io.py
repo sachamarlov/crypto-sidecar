@@ -141,6 +141,10 @@ def test_read_password_interactive_delegates_to_typer(monkeypatch: pytest.Monkey
         captured["confirmation_prompt"] = confirmation_prompt
         return "from-typer"
 
+    # Fix-1.L -- read_password now fails-loud on a non-TTY stdin without
+    # --password-stdin. The interactive code path assumes a real terminal,
+    # so we fake isatty() = True for this branch.
+    monkeypatch.setattr("guardiabox.ui.cli.io.sys.stdin.isatty", lambda: True)
     monkeypatch.setattr("guardiabox.ui.cli.io.typer.prompt", fake_prompt)
 
     assert read_password(stdin=False, confirm=True, prompt="Saisissez") == "from-typer"
@@ -149,3 +153,23 @@ def test_read_password_interactive_delegates_to_typer(monkeypatch: pytest.Monkey
         "hide_input": True,
         "confirmation_prompt": True,
     }
+
+
+def test_read_password_empty_stdin_exits_usage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Fix-1.L -- piping an empty stdin with --password-stdin is a usage error."""
+    with mock.patch.object(sys, "stdin", io.StringIO("\n")), pytest.raises(typer.Exit) as info:
+        read_password(stdin=True)
+    assert info.value.exit_code == ExitCode.USAGE
+
+
+def test_read_password_non_tty_without_flag_exits_usage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Fix-1.L -- non-TTY stdin without --password-stdin surfaces a clear error
+    instead of letting typer.prompt emit a confusing message."""
+    monkeypatch.setattr("guardiabox.ui.cli.io.sys.stdin.isatty", lambda: False)
+    with pytest.raises(typer.Exit) as info:
+        read_password(stdin=False)
+    assert info.value.exit_code == ExitCode.USAGE

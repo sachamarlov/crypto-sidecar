@@ -47,6 +47,7 @@ from guardiabox.core.container import (
 from guardiabox.core.crypto import AesGcmCipher, chunk_aad, derive_chunk_nonce
 from guardiabox.core.exceptions import (
     DecryptionError,
+    DestinationAlreadyExistsError,
     DestinationCollidesWithSourceError,
     MessageTooLargeError,
 )
@@ -144,6 +145,7 @@ def encrypt_file(
     root: Path,
     kdf: Pbkdf2Kdf | Argon2idKdf | None = None,
     dest: Path | None = None,
+    force: bool = False,
 ) -> Path:
     """Encrypt ``source`` to ``dest`` (or ``source.crypt`` alongside).
 
@@ -166,6 +168,9 @@ def encrypt_file(
             raised. If the resolved destination equals ``source``,
             :class:`DestinationCollidesWithSourceError` is raised
             before any write.
+        force: Overwrite ``dest`` if it already exists. When ``False``
+            (default), an existing destination raises
+            :class:`DestinationAlreadyExistsError` before any work.
 
     The streaming chunk size is fixed at :data:`DEFAULT_CHUNK_BYTES`
     (64 KiB). The ``.crypt`` container does not encode the size, so
@@ -198,6 +203,7 @@ def encrypt_file(
         raise DestinationCollidesWithSourceError(
             f"encrypt refuses to overwrite its own source: {source_resolved}"
         )
+    _check_dest_not_existing(safe_target, force=force)
 
     header = ContainerHeader(
         version=CONTAINER_VERSION,
@@ -241,6 +247,7 @@ def encrypt_message(
     root: Path,
     dest: Path,
     kdf: Pbkdf2Kdf | Argon2idKdf | None = None,
+    force: bool = False,
 ) -> Path:
     """Encrypt ``message`` (raw bytes) to a ``.crypt`` file at ``dest``.
 
@@ -263,6 +270,7 @@ def encrypt_message(
     kdf_impl: Pbkdf2Kdf | Argon2idKdf = kdf if kdf is not None else DEFAULT_KDF()
 
     safe_target = resolve_within(dest, root)
+    _check_dest_not_existing(safe_target, force=force)
 
     header = ContainerHeader(
         version=CONTAINER_VERSION,
@@ -305,6 +313,7 @@ def decrypt_file(
     *,
     root: Path,
     dest: Path | None = None,
+    force: bool = False,
 ) -> Path:
     """Decrypt ``source`` (a ``.crypt`` file) to ``dest``.
 
@@ -328,6 +337,7 @@ def decrypt_file(
         raise DestinationCollidesWithSourceError(
             f"decrypt refuses to overwrite its own source: {source_resolved}"
         )
+    _check_dest_not_existing(safe_target, force=force)
 
     key_buf = bytearray(AES_KEY_BYTES)
     with source_resolved.open("rb") as raw_in:
@@ -606,6 +616,22 @@ def _default_decrypt_dest(source: Path) -> Path:
 def _zero_fill(buf: bytearray) -> None:
     for i in range(len(buf)):
         buf[i] = 0
+
+
+def _check_dest_not_existing(target: Path, *, force: bool) -> None:
+    """Refuse to overwrite an existing regular file unless ``force`` is set.
+
+    ``os.replace`` silently overwrites on every platform; this guard
+    surfaces the collision so users can opt in via ``--force`` or pick a
+    different output path. Directories are left to the ``atomic_writer``
+    which will fail with its own error -- we target regular files only.
+    """
+    if force:
+        return
+    if target.exists() and target.is_file():
+        raise DestinationAlreadyExistsError(
+            f"destination already exists: {target}. Pass force=True (CLI --force) to overwrite."
+        )
 
 
 def _password_bytes(password: str) -> bytes:
