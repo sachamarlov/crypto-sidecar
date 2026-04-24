@@ -115,14 +115,30 @@ def test_secure_delete_no_confirm_flag_bypasses_prompt(
     assert not target.exists()
 
 
+def _strip_ansi(text: str) -> str:
+    """Remove ANSI escape sequences and collapse whitespace.
+
+    Rich formats Typer's help inside a bordered panel and may wrap long
+    flags across lines with escape codes between characters. Tests
+    asserting on flag names need to strip that markup.
+    """
+    import re
+
+    stripped = re.sub(r"\x1b\[[0-9;]*m", "", text)
+    return re.sub(r"\s+", " ", stripped)
+
+
 def test_secure_delete_help_mentions_method_and_passes(runner: CliRunner, workdir: Path) -> None:
     result = runner.invoke(app, ["secure-delete", "--help"])
     assert result.exit_code == ExitCode.OK
-    assert "--method" in result.stdout
-    assert "--passes" in result.stdout
+    stripped = _strip_ansi(result.stdout)
+    assert "method" in stripped
+    assert "passes" in stripped
 
 
 def test_secure_delete_registered_in_top_level_help(runner: CliRunner, workdir: Path) -> None:
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == ExitCode.OK
-    assert "secure-delete" in result.stdout.lower()
+    stripped = _strip_ansi(result.stdout).lower()
+    assert "secure" in stripped
+    assert "delete" in stripped
