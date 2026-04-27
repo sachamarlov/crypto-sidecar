@@ -27,8 +27,12 @@ from guardiabox.logging import get_logger
 from guardiabox.ui.tauri.sidecar.api.middleware import TokenAuthMiddleware
 from guardiabox.ui.tauri.sidecar.api.v1.audit import build_audit_router
 from guardiabox.ui.tauri.sidecar.api.v1.decrypt import build_decrypt_router
+from guardiabox.ui.tauri.sidecar.api.v1.doctor import build_doctor_router
 from guardiabox.ui.tauri.sidecar.api.v1.encrypt import build_encrypt_router
 from guardiabox.ui.tauri.sidecar.api.v1.health import build_health_router
+from guardiabox.ui.tauri.sidecar.api.v1.init import build_init_router
+from guardiabox.ui.tauri.sidecar.api.v1.inspect import build_inspect_router
+from guardiabox.ui.tauri.sidecar.api.v1.secure_delete import build_secure_delete_router
 from guardiabox.ui.tauri.sidecar.api.v1.users import build_users_router
 from guardiabox.ui.tauri.sidecar.api.v1.vault import build_vault_router
 from guardiabox.ui.tauri.sidecar.state import SessionStore
@@ -128,4 +132,9 @@ def create_app(
     app.include_router(build_users_router())
     # Audit history + verify chain (G-07).
     app.include_router(build_audit_router())
+    # Inspect / init / doctor / secure-delete (G-08).
+    app.include_router(build_inspect_router())
+    app.include_router(build_init_router())
+    app.include_router(build_doctor_router())
+    app.include_router(build_secure_delete_router())
     return app
