@@ -1,0 +1,370 @@
+name: Release artefacts
+
+# Phase I (#56) -- builds and signs the cross-platform release
+# artefacts when a GitHub Release is published.
+#
+# Trigger model:
+#   * release-please.yml on push-to-main maintains a release-PR
+#     that, when squash-merged, creates a GitHub Release tag.
+#   * That tag fires `release: published`, which fans out to the
+#     three OS jobs below in this file.
+#   * `workflow_dispatch` is also wired so a maintainer can rebuild
+#     the artefacts of an existing release without retagging
+#     (Authenticode cert renewal, SBOM regen, etc.).
+#
+# What ships:
+#   - Sidecar PyInstaller binary per (OS, arch) -- for offline
+#     verification by reviewers.
+#   - Tauri bundle .exe (NSIS) + .msi (WiX) on Windows.
+#   - Tauri bundle .dmg on macOS (Intel + Apple Silicon).
+#   - Tauri bundle .deb on Linux x86_64.
+#   - SBOM (cyclonedx-bom JSON) for the Python and npm dependency
+#     trees, attached to the release.
+#   - SHA-256 checksums file for every uploaded artefact.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Tag to upload artefacts to (e.g. v0.1.0)"
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  PYTHON_VERSION: "3.12"
+  NODE_VERSION: "22"
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1. Build the PyInstaller sidecar binary on each target OS / arch.
+  # ---------------------------------------------------------------------------
+  sidecar:
+    name: Sidecar (${{ matrix.os }} / ${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+          - os: macos-13
+            target: x86_64-apple-darwin
+          - os: macos-14
+            target: aarch64-apple-darwin
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Install Python toolchain + project + build extras
+        run: |
+          uv python install ${{ env.PYTHON_VERSION }}
+          uv sync --extra build
+
+      - name: Build sidecar binary (release + smoke)
+        run: uv run python scripts/build_sidecar.py --release --smoke-test
+
+      - name: Upload sidecar artefact
+        uses: actions/upload-artifact@v4
+        with:
+          name: guardiabox-sidecar-${{ matrix.target }}
+          path: src/guardiabox/ui/tauri/src-tauri/binaries/guardiabox-sidecar-${{ matrix.target }}*
+          if-no-files-found: error
+          retention-days: 30
+
+  # ---------------------------------------------------------------------------
+  # 2. Build the Tauri bundle on each platform, consuming the sidecar artefact.
+  # ---------------------------------------------------------------------------
+  tauri:
+    name: Tauri bundle (${{ matrix.os }})
+    needs: sidecar
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            bundle_glob: "src/guardiabox/ui/tauri/src-tauri/target/release/bundle/deb/*.deb"
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            bundle_glob: "src/guardiabox/ui/tauri/src-tauri/target/release/bundle/{nsis,msi}/*.{exe,msi}"
+          - os: macos-13
+            target: x86_64-apple-darwin
+            bundle_glob: "src/guardiabox/ui/tauri/src-tauri/target/release/bundle/dmg/*.dmg"
+          - os: macos-14
+            target: aarch64-apple-darwin
+            bundle_glob: "src/guardiabox/ui/tauri/src-tauri/target/release/bundle/dmg/*.dmg"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Linux system deps
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev \
+            librsvg2-dev patchelf libssl-dev
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: src/guardiabox/ui/tauri/frontend/pnpm-lock.yaml
+
+      - name: Install frontend deps
+        working-directory: src/guardiabox/ui/tauri/frontend
+        run: pnpm install --frozen-lockfile || pnpm install
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src/guardiabox/ui/tauri/src-tauri -> target
+
+      - name: Download sidecar artefact
+        uses: actions/download-artifact@v4
+        with:
+          name: guardiabox-sidecar-${{ matrix.target }}
+          path: src/guardiabox/ui/tauri/src-tauri/binaries
+
+      - name: Mark sidecar binary executable (POSIX only)
+        if: matrix.os != 'windows-latest'
+        run: chmod +x src/guardiabox/ui/tauri/src-tauri/binaries/guardiabox-sidecar-*
+
+      - name: Tauri build
+        working-directory: src/guardiabox/ui/tauri/frontend
+        run: pnpm tauri build
+
+      - name: Sign Windows binary (Authenticode dev cert)
+        if: matrix.os == 'windows-latest' && env.WINDOWS_CERT_PFX_BASE64 != ''
+        shell: pwsh
+        env:
+          WINDOWS_CERT_PFX_BASE64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
+          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+        run: |
+          $pfxBytes = [Convert]::FromBase64String($env:WINDOWS_CERT_PFX_BASE64)
+          [System.IO.File]::WriteAllBytes("cert.pfx", $pfxBytes)
+          $signtool = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64\signtool.exe"
+          $bundles = Get-ChildItem -Recurse -Path "src/guardiabox/ui/tauri/src-tauri/target/release/bundle/" -Include *.exe,*.msi
+          foreach ($b in $bundles) {
+            & $signtool sign /f cert.pfx /p $env:WINDOWS_CERT_PASSWORD `
+              /tr http://timestamp.digicert.com /td sha256 /fd sha256 `
+              $b.FullName
+            & $signtool verify /pa /v $b.FullName
+          }
+          Remove-Item cert.pfx
+
+      - name: Upload bundle artefacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: guardiabox-bundle-${{ matrix.target }}
+          path: ${{ matrix.bundle_glob }}
+          if-no-files-found: error
+          retention-days: 30
+
+  # ---------------------------------------------------------------------------
+  # 3. Smoke-test the Windows installer in CI (NFR / installer integrity).
+  # ---------------------------------------------------------------------------
+  smoke-installer:
+    name: Smoke test installer (Windows)
+    needs: tauri
+    runs-on: windows-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Windows bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: guardiabox-bundle-x86_64-pc-windows-msvc
+          path: bundle
+
+      - name: List downloaded bundles
+        shell: pwsh
+        run: Get-ChildItem -Recurse bundle/
+
+      - name: Install + smoke (NSIS silent)
+        shell: pwsh
+        run: |
+          $nsis = Get-ChildItem -Recurse bundle/ -Filter *.exe | Select-Object -First 1
+          if (-not $nsis) {
+            Write-Error "no NSIS installer found"
+            exit 1
+          }
+          # Silent install: /S in NSIS = no prompts, default install dir.
+          Start-Process -FilePath $nsis.FullName -ArgumentList "/S" -Wait
+          # Confirm the installer placed the app in Program Files.
+          $exe = Get-ChildItem -Recurse "C:\Program Files\GuardiaBox" -Filter *.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $exe) {
+            Write-Error "GuardiaBox.exe not present in Program Files after silent install"
+            exit 1
+          }
+          Write-Host "Installed at $($exe.FullName)"
+
+  # ---------------------------------------------------------------------------
+  # 4. NFR verification (cold start + memory + binary size). Runs after Tauri
+  #    build so the bundled .exe is available for the GUI cold-start proxy.
+  # ---------------------------------------------------------------------------
+  nfr-verification:
+    name: NFR verification
+    needs: tauri
+    runs-on: windows-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Install Python + project
+        run: |
+          uv python install ${{ env.PYTHON_VERSION }}
+          uv sync
+
+      - name: Download Windows sidecar
+        uses: actions/download-artifact@v4
+        with:
+          name: guardiabox-sidecar-x86_64-pc-windows-msvc
+          path: src/guardiabox/ui/tauri/src-tauri/binaries
+
+      - name: Download Windows GUI bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: guardiabox-bundle-x86_64-pc-windows-msvc
+          path: bundle
+
+      - name: Locate Tauri .exe (NSIS unpacked)
+        id: locate-gui
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Recurse bundle/ -Filter *.exe | Where-Object { $_.Name -notlike "*setup*" } | Select-Object -First 1
+          if (-not $exe) {
+            $exe = Get-ChildItem -Recurse bundle/ -Filter *.exe | Select-Object -First 1
+          }
+          "gui_exe=$($exe.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          Write-Host "Found GUI exe at $($exe.FullName)"
+
+      - name: Run NFR verification
+        shell: pwsh
+        run: |
+          $sidecar = Get-ChildItem -Recurse src/guardiabox/ui/tauri/src-tauri/binaries -Filter *.exe | Select-Object -First 1
+          uv run python scripts/verify_nfr.py --json `
+            --binary "$($sidecar.FullName)" `
+            --gui-binary "${{ steps.locate-gui.outputs.gui_exe }}" `
+            > nfr-report.json
+          Get-Content nfr-report.json
+          # Render the markdown report too for the GH summary.
+          uv run python scripts/verify_nfr.py `
+            --binary "$($sidecar.FullName)" `
+            --gui-binary "${{ steps.locate-gui.outputs.gui_exe }}" `
+            >> $env:GITHUB_STEP_SUMMARY
+
+      - name: Upload NFR report
+        uses: actions/upload-artifact@v4
+        with:
+          name: nfr-report
+          path: nfr-report.json
+          retention-days: 90
+
+  # ---------------------------------------------------------------------------
+  # 5. SBOM (CycloneDX) for the Python and npm dependency trees.
+  # ---------------------------------------------------------------------------
+  sbom:
+    name: SBOM (cyclonedx)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Install Python + project + cyclonedx-bom
+        run: |
+          uv python install ${{ env.PYTHON_VERSION }}
+          uv sync
+          uv pip install cyclonedx-bom
+
+      - name: Generate Python SBOM
+        run: |
+          uv run cyclonedx-py environment --output-format json --output-file sbom-python.json
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Generate npm SBOM
+        working-directory: src/guardiabox/ui/tauri/frontend
+        run: |
+          pnpm install --frozen-lockfile || pnpm install
+          npx --yes @cyclonedx/cyclonedx-npm@latest --output-format JSON --output-file sbom-npm.json
+
+      - name: Upload SBOM artefacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sboms
+          path: |
+            sbom-python.json
+            src/guardiabox/ui/tauri/frontend/sbom-npm.json
+          if-no-files-found: error
+          retention-days: 365
+
+  # ---------------------------------------------------------------------------
+  # 6. Aggregate every artefact, compute SHA-256, attach to the release.
+  # ---------------------------------------------------------------------------
+  publish:
+    name: Attach to GitHub Release
+    needs: [sidecar, tauri, smoke-installer, nfr-verification, sbom]
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download every artefact
+        uses: actions/download-artifact@v4
+        with:
+          path: artefacts
+
+      - name: Flatten + checksum
+        run: |
+          mkdir -p release
+          find artefacts -type f \( -name '*.exe' -o -name '*.msi' -o -name '*.dmg' \
+            -o -name '*.deb' -o -name 'guardiabox-sidecar-*' -o -name 'sbom-*.json' \
+            -o -name 'nfr-report.json' \) -exec cp {} release/ \;
+          ls -lah release/
+          (cd release && sha256sum * > SHA256SUMS)
+          cat release/SHA256SUMS
+
+      - name: Upload release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ github.event.release.tag_name }}" release/* --clobber

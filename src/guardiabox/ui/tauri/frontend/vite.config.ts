@@ -57,6 +57,9 @@ export default defineConfig(async () => ({
     globals: true,
     environment: "happy-dom",
     setupFiles: ["./src/test/setup.ts"],
+    // Playwright E2E tests live under tests-e2e/ and use a different
+    // runtime; vitest must skip them.
+    exclude: ["**/node_modules/**", "**/dist/**", "tests-e2e/**"],
     coverage: {
       provider: "v8",
       reporter: ["text", "html", "json"],
