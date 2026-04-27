@@ -111,9 +111,14 @@ Trois interfaces utilisateur partagent le même cœur Python :
   `--format json|table` sur `user list`, `user show`, `doctor` (déjà
   sur `history` depuis Phase C).
 
+- ✅ **TUI Textual** (spec 000-tui) — `guardiabox-tui` ouvre une app
+  Textual avec dashboard, encrypt/decrypt/history/settings modals,
+  password field zxcvbn live, toast auto-dismissing, reduced-motion
+  probe (TERM=dumb / CI=true). Anti-oracle préservé sur le screen
+  decrypt (mêmes erreurs uniformes que la CLI).
+
 ### Roadmap — à implémenter avant la soutenance
 
-- 🔨 TUI Textual — spec 000-tui.
 - 🔨 GUI Tauri + React — spec 000-tauri-sidecar + frontend.
 
 ### Roadmap post-MVP
