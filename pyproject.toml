@@ -57,6 +57,7 @@ dependencies = [
     "pydantic>=2.10.0",
     "pydantic-settings>=2.7.0",
     "httpx>=0.28.0",
+    "slowapi>=0.1.9",
     # --- Persistence ---
     # SQLCipher is required for at-rest database encryption (ADR-0003).
     # Linux: pre-built wheel via sqlcipher3-binary.
@@ -306,6 +307,7 @@ unfixable = [
     "PLC0415",# local imports are fine in helpers and fixtures
     "ERA001", # example command lines in KAT docstrings look like commented code
     "PLR0917",# pytest fixtures are kw-injected, all-positional rule does not apply
+    "SLF001", # tests legitimately drive private helpers to assert their contract
 ]
 "src/guardiabox/ui/tauri/sidecar/**/*.py" = [
     "B008",   # FastAPI Depends() in defaults is the convention

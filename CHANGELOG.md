@@ -12,6 +12,79 @@ what is actually merged on `main`.
 
 ## [Unreleased]
 
+### Added (Phase G — spec 000-tauri-sidecar partial)
+
+- **FastAPI sidecar bound 127.0.0.1 only** (`SidecarSettings.host`
+  is `Literal["127.0.0.1"]`; a regression-blocking source-grep test
+  refuses any `0.0.0.0` literal in `src/guardiabox/`).
+- **Per-launch session token** (32 octets via
+  `secrets.token_urlsafe`, ~256 bits of OS-CSPRNG entropy).
+  Compared in constant time via `hmac.compare_digest`. Transported
+  via `X-GuardiaBox-Token` header. Whitelist for `/healthz`,
+  `/readyz`, `/version`, `/openapi.json`.
+- **Vault session model**: in-memory `SessionStore` keyed by
+  random `session_id`, TTL = `auto_lock_minutes`, sliding expiry on
+  access, zero-fill on close / expiry / lifespan-shutdown. Uses
+  the `X-GuardiaBox-Session` header.
+- **`vault.admin.json` schema v2** with `verification_blob`: an
+  AES-GCM ciphertext sealed under the admin key. Successful decrypt
+  proves the password derives the right key, eliminating the
+  "wrong-password = different-key" footgun. Pre-1.0 vaults must be
+  re-initialised.
+- **HTTP endpoints**:
+  - `POST /api/v1/init` — bootstrap fresh vault (admin config +
+    Alembic migrations + `system.startup` audit row).
+  - `POST /api/v1/vault/{unlock,lock}` + `GET /api/v1/vault/status`.
+  - `GET/POST/DELETE /api/v1/users` — multi-user CRUD with
+    `user.create` / `user.delete` audit hooks.
+  - `GET /api/v1/audit` (filterable, decrypted target + actor
+    username) and `GET /api/v1/audit/verify` (hash-chain integrity
+    probe).
+  - `POST /api/v1/encrypt` + `POST /api/v1/decrypt` — file-mode
+    delegation to `core.operations` with anti-oracle propagation
+    (ADR-0015, sec C of ADR-0016): post-KDF failures collapse to
+    HTTP 422 + constant body `{"detail":"decryption failed"}`,
+    byte-identical between wrong-password and tampered tag.
+  - `POST /api/v1/share` + `POST /api/v1/accept` — hybrid
+    RSA-OAEP-SHA256 wrap + RSA-PSS-SHA256 sign over `.gbox-share`
+    v1; recipient-side `IntegrityError` collapses to HTTP 422
+    `{"detail":"share verification failed"}`.
+  - `POST /api/v1/inspect` — read-only `.crypt` header view.
+  - `POST /api/v1/secure-delete` — DoD overwrite-dod with SSD
+    confirm gate. Crypto-erase mode roadmapped as a follow-up.
+  - `GET /api/v1/doctor` — paths + SQLCipher availability + opt-in
+    SSD report + opt-in audit chain verify.
+  - `GET /healthz` / `/readyz` / `/version` — public probes.
+- **slowapi rate-limit scaffolding** (per-IP buckets per ADR-0016
+  sec D: 5/min on unlock, 60/min on writes, 30/min on CRUD,
+  600/min on read-only). Per-route decorators land in a follow-up;
+  `Limiter` instance + 429 constant exception handler are bound on
+  app construction.
+- **PyInstaller `scripts/build_sidecar.py`** — real invocation
+  (`--collect-all guardiabox / cryptography / sqlalchemy / alembic`,
+  hidden-imports `argon2._ffi`, `aiosqlite`, `zxcvbn`,
+  `--noconsole` on Windows). Optional `--smoke-test` flag spawns
+  the produced binary, parses the handshake, hits `/healthz`.
+- **Rust shell `sidecar.rs`** — spawn + handshake parse
+  (10s timeout, strict prefix `GUARDIABOX_SIDECAR=<port> <token>`,
+  rejects zero port / empty token / oversized port). Exposes the
+  `get_sidecar_connection` Tauri command. Six Rust unit tests on
+  the parser.
+- **`tauri.conf.json bundle.externalBin`** restored.
+- **ADR-0016** — Tauri sidecar IPC security (per-launch token,
+  session model, anti-oracle, slowapi rate limit, no TLS on
+  loopback, hard-coded 127.0.0.1 bind).
+- 50+ unit tests via `fastapi.testclient.TestClient` covering
+  every router, anti-oracle byte-identity on `/decrypt` and
+  `/accept`, session TTL slide, zero-fill on close, bind-address
+  invariant. ruff strict + mypy strict + bandit clean on the
+  sidecar package.
+
+Follow-ups tracked but **not in this section**: WebSocket
+`/api/v1/stream` (G-10), CI matrix sidecar build (G-16), full
+subprocess spawn integration tests (G-18), per-route rate limit
+decorators (G-11.b), crypto-erase variant of `/secure-delete`.
+
 ### Added
 - **Spec 001** — file and message encryption with AES-256-GCM and a
   choice of PBKDF2-HMAC-SHA256 (≥ 600 000 iterations) or Argon2id

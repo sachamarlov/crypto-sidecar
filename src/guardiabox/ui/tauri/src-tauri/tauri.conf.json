@@ -49,6 +49,7 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "externalBin": ["binaries/guardiabox-sidecar"],
     "resources": [],
     "windows": {
       "wix": {

@@ -54,7 +54,10 @@ def test_from_json_rejects_unknown_schema_version() -> None:
 
 
 def test_from_json_rejects_wrong_salt_length() -> None:
-    bad = '{"schema_version": 1, "salt": "00", "kdf_id": 1, "kdf_params": "00"}'
+    bad = (
+        '{"schema_version": 2, "salt": "00", "kdf_id": 1, "kdf_params": "00", '
+        '"verification_blob": "00"}'
+    )
     with pytest.raises(ValueError, match="salt"):
         VaultAdminConfig.from_json(bad)
 
