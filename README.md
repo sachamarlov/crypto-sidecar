@@ -266,30 +266,31 @@ pnpm --dir src/guardiabox/ui/tauri/frontend tauri build
 | [docs/CRYPTO_DECISIONS.md](docs/CRYPTO_DECISIONS.md) | Justifications cryptographiques (NIST/OWASP/RFC)                           |
 | [docs/CONVENTIONS.md](docs/CONVENTIONS.md)           | Règles de code (SOLID, DRY, naming, layering)                              |
 | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)           | Guide développeur (setup, debug, troubleshooting)                          |
-| [docs/adr/](docs/adr/)                               | Architecture Decision Records (MADR v4) — 16 entrées (ADR-0000 à ADR-0015) |
+| [docs/adr/](docs/adr/)                               | Architecture Decision Records (MADR v4) — 17 entrées (ADR-0000 à ADR-0016) |
 | [docs/specs/](docs/specs/)                           | Spec-Driven Development par fonctionnalité                                 |
 | [docs/cahier-des-charges/](docs/cahier-des-charges/) | Cahier des charges officiel GCS2                                           |
 
 ### Architecture Decision Records actuels
 
-| ID   | Titre                                                      | Statut             |
-| ---- | ---------------------------------------------------------- | ------------------ |
-| 0000 | Record architectural decisions using MADR                  | accepted           |
-| 0001 | Use Tauri 2 with a Python sidecar for the desktop GUI      | accepted           |
-| 0002 | AES-GCM with dual KDF (PBKDF2 default, Argon2id opt-in)    | accepted           |
-| 0003 | Encrypt the SQLite database at rest with SQLCipher         | superseded by 0011 |
-| 0004 | RSA-OAEP-SHA256 hybrid cryptosystem for sharing            | accepted           |
-| 0005 | Vite over Next.js for the Tauri frontend                   | accepted           |
-| 0006 | `uv` over Poetry / pip for Python dependency management    | accepted           |
-| 0007 | Conventional Commits enforced by `release-please`          | accepted           |
-| 0008 | Spec-Driven Development workflow                           | accepted           |
-| 0009 | GitHub fine-grained PAT for the autonomy agent             | accepted           |
-| 0010 | Apache License 2.0 for the project                         | accepted           |
-| 0011 | Cross-platform database encryption strategy                | accepted           |
-| 0012 | PyInstaller for MVP, planned migration to Nuitka post-CDC  | accepted           |
-| 0013 | `.crypt` container v1 on-disk format                       | accepted           |
-| 0014 | Chunk-bound AAD for streaming AEAD                         | accepted           |
-| 0015 | Anti-oracle: unify stderr and exit code on decrypt failure | accepted           |
+| ID   | Titre                                                                 | Statut             |
+| ---- | --------------------------------------------------------------------- | ------------------ |
+| 0000 | Record architectural decisions using MADR                             | accepted           |
+| 0001 | Use Tauri 2 with a Python sidecar for the desktop GUI                 | accepted           |
+| 0002 | AES-GCM with dual KDF (PBKDF2 default, Argon2id opt-in)               | accepted           |
+| 0003 | Encrypt the SQLite database at rest with SQLCipher                    | superseded by 0011 |
+| 0004 | RSA-OAEP-SHA256 hybrid cryptosystem for sharing                       | accepted           |
+| 0005 | Vite over Next.js for the Tauri frontend                              | accepted           |
+| 0006 | `uv` over Poetry / pip for Python dependency management               | accepted           |
+| 0007 | Conventional Commits enforced by `release-please`                     | accepted           |
+| 0008 | Spec-Driven Development workflow                                      | accepted           |
+| 0009 | GitHub fine-grained PAT for the autonomy agent                        | accepted           |
+| 0010 | Apache License 2.0 for the project                                    | accepted           |
+| 0011 | Cross-platform database encryption strategy                           | accepted           |
+| 0012 | PyInstaller for MVP, planned migration to Nuitka post-CDC             | accepted           |
+| 0013 | `.crypt` container v1 on-disk format                                  | accepted           |
+| 0014 | Chunk-bound AAD for streaming AEAD                                    | accepted           |
+| 0015 | Anti-oracle: unify stderr and exit code on decrypt failure            | accepted           |
+| 0016 | Tauri sidecar IPC: per-launch token, session model, anti-oracle layer | accepted           |
 
 ## Sécurité
 
