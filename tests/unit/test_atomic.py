@@ -99,7 +99,7 @@ def test_exception_mid_write_routes_through_wipe_helper(
     import guardiabox.fileio.atomic as atomic_mod
 
     called_with: list[Path] = []
-    real_helper = atomic_mod._best_effort_wipe_and_unlink  # noqa: SLF001
+    real_helper = atomic_mod._best_effort_wipe_and_unlink
 
     def spy(path: Path) -> None:
         called_with.append(path)

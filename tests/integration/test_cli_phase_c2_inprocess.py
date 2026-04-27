@@ -256,7 +256,7 @@ def test_user_create_flow_persists_user_and_audits(
     patched_passwords(USER_PW, STRONG)  # user pw, then admin pw
 
     asyncio.run(
-        user_cmd._create_flow(  # noqa: SLF001 -- exercising the flow directly
+        user_cmd._create_flow(
             data_dir=vault_dir,
             username="alice",
             kdf_choice=user_cmd.KdfChoice.PBKDF2,
@@ -299,7 +299,7 @@ def test_user_create_flow_rejects_duplicate(
 
     patched_passwords(USER_PW, STRONG)
     asyncio.run(
-        user_cmd._create_flow(  # noqa: SLF001
+        user_cmd._create_flow(
             data_dir=vault_dir,
             username="bob",
             kdf_choice=user_cmd.KdfChoice.PBKDF2,
@@ -310,7 +310,7 @@ def test_user_create_flow_rejects_duplicate(
     patched_passwords(USER_PW, STRONG)
     with pytest.raises(typer.Exit) as info:
         asyncio.run(
-            user_cmd._create_flow(  # noqa: SLF001
+            user_cmd._create_flow(
                 data_dir=vault_dir,
                 username="bob",
                 kdf_choice=user_cmd.KdfChoice.PBKDF2,
@@ -329,7 +329,7 @@ def test_user_list_flow_returns_dicts(
     """Phase E refactor: _list_flow now returns list[dict] for --format json wiring."""
     patched_passwords(USER_PW, STRONG)
     asyncio.run(
-        user_cmd._create_flow(  # noqa: SLF001
+        user_cmd._create_flow(
             data_dir=vault_dir,
             username="alice",
             kdf_choice=user_cmd.KdfChoice.PBKDF2,
@@ -338,9 +338,7 @@ def test_user_list_flow_returns_dicts(
     )
 
     patched_passwords(STRONG)
-    rows = asyncio.run(
-        user_cmd._list_flow(data_dir=vault_dir, password_stdin=False)  # noqa: SLF001
-    )
+    rows = asyncio.run(user_cmd._list_flow(data_dir=vault_dir, password_stdin=False))
     assert len(rows) == 1
     assert rows[0]["username"] == "alice"
     assert "id" in rows[0]
@@ -357,7 +355,7 @@ def test_user_show_flow_returns_snapshot(
     """Phase E refactor: _show_flow now returns dict[str, Any] | None."""
     patched_passwords(USER_PW, STRONG)
     asyncio.run(
-        user_cmd._create_flow(  # noqa: SLF001
+        user_cmd._create_flow(
             data_dir=vault_dir,
             username="charlie",
             kdf_choice=user_cmd.KdfChoice.PBKDF2,
@@ -367,9 +365,7 @@ def test_user_show_flow_returns_snapshot(
 
     patched_passwords(STRONG)
     snapshot = asyncio.run(
-        user_cmd._show_flow(  # noqa: SLF001
-            data_dir=vault_dir, username="charlie", password_stdin=False
-        )
+        user_cmd._show_flow(data_dir=vault_dir, username="charlie", password_stdin=False)
     )
     assert snapshot is not None
     assert snapshot["username"] == "charlie"
@@ -385,9 +381,7 @@ def test_user_show_flow_unknown_returns_none(
 ) -> None:
     patched_passwords(STRONG)
     snapshot = asyncio.run(
-        user_cmd._show_flow(  # noqa: SLF001
-            data_dir=vault_dir, username="ghost", password_stdin=False
-        )
+        user_cmd._show_flow(data_dir=vault_dir, username="ghost", password_stdin=False)
     )
     assert snapshot is None
 
@@ -400,7 +394,7 @@ def test_user_delete_flow_removes_user_and_audits(
 ) -> None:
     patched_passwords(USER_PW, STRONG)
     asyncio.run(
-        user_cmd._create_flow(  # noqa: SLF001
+        user_cmd._create_flow(
             data_dir=vault_dir,
             username="diana",
             kdf_choice=user_cmd.KdfChoice.PBKDF2,
@@ -410,9 +404,7 @@ def test_user_delete_flow_removes_user_and_audits(
 
     patched_passwords(STRONG)
     deleted = asyncio.run(
-        user_cmd._delete_flow(  # noqa: SLF001
-            data_dir=vault_dir, username="diana", password_stdin=False
-        )
+        user_cmd._delete_flow(data_dir=vault_dir, username="diana", password_stdin=False)
     )
     assert deleted is True
 
@@ -441,9 +433,7 @@ def test_user_delete_flow_unknown_returns_false(
 ) -> None:
     patched_passwords(STRONG)
     found = asyncio.run(
-        user_cmd._delete_flow(  # noqa: SLF001
-            data_dir=vault_dir, username="ghost", password_stdin=False
-        )
+        user_cmd._delete_flow(data_dir=vault_dir, username="ghost", password_stdin=False)
     )
     assert found is False
 
@@ -456,8 +446,8 @@ def test_user_delete_flow_unknown_returns_false(
 def test_user_build_kdf_argon2id() -> None:
     from guardiabox.core.kdf import Argon2idKdf, Pbkdf2Kdf
 
-    pbkdf2 = user_cmd._build_kdf(user_cmd.KdfChoice.PBKDF2)  # noqa: SLF001
-    argon2 = user_cmd._build_kdf(user_cmd.KdfChoice.ARGON2ID)  # noqa: SLF001
+    pbkdf2 = user_cmd._build_kdf(user_cmd.KdfChoice.PBKDF2)
+    argon2 = user_cmd._build_kdf(user_cmd.KdfChoice.ARGON2ID)
     assert isinstance(pbkdf2, Pbkdf2Kdf)
     assert isinstance(argon2, Argon2idKdf)
 
@@ -475,7 +465,7 @@ def test_history_flow_returns_entries_in_reverse_order(
 ) -> None:
     patched_passwords(USER_PW, STRONG)
     asyncio.run(
-        user_cmd._create_flow(  # noqa: SLF001
+        user_cmd._create_flow(
             data_dir=vault_dir,
             username="alice",
             kdf_choice=user_cmd.KdfChoice.PBKDF2,
@@ -485,7 +475,7 @@ def test_history_flow_returns_entries_in_reverse_order(
 
     patched_passwords(STRONG)
     entries = asyncio.run(
-        history_cmd._history_flow(  # noqa: SLF001
+        history_cmd._history_flow(
             data_dir=vault_dir,
             limit=10,
             user=None,
@@ -509,7 +499,7 @@ def test_history_flow_filters_by_action(
 ) -> None:
     patched_passwords(USER_PW, STRONG)
     asyncio.run(
-        user_cmd._create_flow(  # noqa: SLF001
+        user_cmd._create_flow(
             data_dir=vault_dir,
             username="alice",
             kdf_choice=user_cmd.KdfChoice.PBKDF2,
@@ -519,7 +509,7 @@ def test_history_flow_filters_by_action(
 
     patched_passwords(STRONG)
     entries = asyncio.run(
-        history_cmd._history_flow(  # noqa: SLF001
+        history_cmd._history_flow(
             data_dir=vault_dir,
             limit=10,
             user=None,
@@ -540,7 +530,7 @@ def test_history_flow_filter_by_unknown_user_returns_empty(
     """Filtering on a non-existent user returns ``[]`` (not an error)."""
     patched_passwords(STRONG)
     entries = asyncio.run(
-        history_cmd._history_flow(  # noqa: SLF001
+        history_cmd._history_flow(
             data_dir=vault_dir,
             limit=10,
             user="nobody",
@@ -559,7 +549,7 @@ def test_history_flow_filter_by_known_user(
 ) -> None:
     patched_passwords(USER_PW, STRONG)
     asyncio.run(
-        user_cmd._create_flow(  # noqa: SLF001
+        user_cmd._create_flow(
             data_dir=vault_dir,
             username="erin",
             kdf_choice=user_cmd.KdfChoice.PBKDF2,
@@ -569,7 +559,7 @@ def test_history_flow_filter_by_known_user(
 
     patched_passwords(STRONG)
     entries = asyncio.run(
-        history_cmd._history_flow(  # noqa: SLF001
+        history_cmd._history_flow(
             data_dir=vault_dir,
             limit=10,
             user="erin",
@@ -591,7 +581,7 @@ def test_history_command_renders_table(
     """Smoke the table rendering through CliRunner -- exercises every echo line."""
     patched_passwords(USER_PW, STRONG)
     asyncio.run(
-        user_cmd._create_flow(  # noqa: SLF001
+        user_cmd._create_flow(
             data_dir=vault_dir,
             username="frank",
             kdf_choice=user_cmd.KdfChoice.PBKDF2,
@@ -771,7 +761,7 @@ def test_audit_chain_after_user_create_still_verifies(
     """After every user op, the chain still verifies cleanly."""
     patched_passwords(USER_PW, STRONG)
     asyncio.run(
-        user_cmd._create_flow(  # noqa: SLF001
+        user_cmd._create_flow(
             data_dir=vault_dir,
             username=f"user_{uuid4().hex[:8]}",
             kdf_choice=user_cmd.KdfChoice.PBKDF2,

@@ -27,7 +27,6 @@ from typing import Final
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from slowapi import Limiter
-from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
 __all__ = [
@@ -56,8 +55,14 @@ limiter = Limiter(key_func=get_remote_address)
 """Shared :class:`slowapi.Limiter` instance bound on app construction."""
 
 
-def rate_limit_exceeded_handler(_: Request, __: RateLimitExceeded) -> JSONResponse:
-    """Return a constant 429 body so callers cannot derive bucket details."""
+def rate_limit_exceeded_handler(_: Request, __: Exception) -> JSONResponse:
+    """Return a constant 429 body so callers cannot derive bucket details.
+
+    The signature accepts :class:`Exception` rather than the narrower
+    :class:`RateLimitExceeded` so it satisfies Starlette's
+    ``add_exception_handler`` contract directly. The exception class
+    is keyed by :class:`RateLimitExceeded` at registration time.
+    """
     return JSONResponse(
         status_code=429,
         content={"detail": "rate limit exceeded"},

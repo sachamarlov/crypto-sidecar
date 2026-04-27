@@ -59,7 +59,7 @@ def _vault_with_alice_item(
 
     queue.extend((ALICE_PW, ADMIN_PW))
     asyncio.run(
-        user_cmd._create_flow(  # noqa: SLF001
+        user_cmd._create_flow(
             data_dir=data_dir,
             username="alice",
             kdf_choice=user_cmd.KdfChoice.PBKDF2,
