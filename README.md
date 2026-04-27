@@ -106,6 +106,10 @@ Trois interfaces utilisateur partagent le même cœur Python :
   par fichier dans l'archi actuelle, donc l'effacement strict NIST
   SP 800-88 reste roadmapé post-MVP via un format `.crypt` v2.
 - ✅ Diagnostic `doctor --report-ssd` (probe SSD / HDD / inconnu).
+- ✅ **CLI résiduels** (spec 000-cli Phase E) — `guardiabox config list/get`,
+  flags globaux `--quiet` / `--verbose`, sortie machine-readable
+  `--format json|table` sur `user list`, `user show`, `doctor` (déjà
+  sur `history` depuis Phase C).
 
 ### Roadmap — à implémenter avant la soutenance
 
@@ -190,6 +194,16 @@ uv run guardiabox user show alice
 # Consulter le journal d'audit + vérifier la chaîne d'intégrité
 uv run guardiabox history --limit 50 --format table
 uv run guardiabox doctor --verify-audit
+
+# Sortie machine-readable (JSON) -- utile pour scripts / CI smokes
+uv run guardiabox user list --format json | jq
+uv run guardiabox doctor --report-ssd --format json
+uv run guardiabox config list   # toutes les valeurs courantes
+uv run guardiabox config get crypto.pbkdf2_iterations
+
+# Verbosité globale
+uv run guardiabox --verbose history --limit 10  # structlog DEBUG
+uv run guardiabox --quiet user create alice     # logs ERROR seulement
 
 # Encrypt avec audit (--vault-user opt-in)
 uv run guardiabox encrypt rapport.pdf --vault-user alice
