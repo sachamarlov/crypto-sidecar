@@ -49,6 +49,16 @@ what is actually merged on `main`.
   `encrypt` / `decrypt` that records the action in the audit log
   (and, for encrypt, persists a `vault_items` row).
 
+### Fixed
+- **Secure-delete random pass** — `_pattern_for_pass` previously
+  returned a single byte from `secrets.token_bytes(1)` to mark the
+  random pass; if that byte happened to be `\x00` or `\xff`
+  (≈ 0.78 %) the downstream check mistook the pass for a fixed-fill
+  zero/one pass and overwrote the file with that fixed byte instead
+  of fresh random bytes. Replaced the byte sentinel with a
+  `_PassKind` enum so the random branch is unambiguous. DoD
+  5220.22-M pass #3 is now guaranteed random.
+
 ### Security
 - KDF parameter floors AND ceilings enforced on both encode and decode
   paths — guards against crafted headers that would cause OOM or
