@@ -28,9 +28,14 @@
 - [x] **T-002.08** — `ui.cli.commands.decrypt` with `--output`,
       `--stdout` (alias `--message`, `-m`), `--password-stdin` flags +
       exit-code mapping via `io.exit_for`.
-- [ ] **T-002.09** — Audit log entries for both success and failure
-      paths. _Deferred_: currently emits structlog events only; the
-      persistent audit log ships with spec 000-multi-user.
+- [x] **T-002.09** — Audit log entries for both success and failure
+      paths. Implemented in Phase C-2 via the `--vault-user` opt-in
+      flag on `decrypt`: when present, `ui/cli/_vault_audit.py` opens
+      a vault session under the admin password and appends a
+      `file.decrypt` (or `file.decrypt_failed` on `IntegrityError` /
+      `DecryptionError`) entry to the hash-chained audit log. See
+      `T-000mu.13` and the four integration tests in
+      `tests/integration/test_cli_vault_audit_hook.py`.
 - [x] **T-002.10** — Anti-partial-output integration tests:
       `tests/unit/test_anti_partial_output.py` corrupts mid-stream and
       asserts no `.decrypt` file remains.
