@@ -26,6 +26,8 @@ from guardiabox.config import Settings, get_settings
 from guardiabox.logging import get_logger
 from guardiabox.ui.tauri.sidecar.api.middleware import TokenAuthMiddleware
 from guardiabox.ui.tauri.sidecar.api.v1.health import build_health_router
+from guardiabox.ui.tauri.sidecar.api.v1.vault import build_vault_router
+from guardiabox.ui.tauri.sidecar.state import SessionStore
 
 __all__ = ["create_app"]
 
@@ -33,18 +35,22 @@ _log = get_logger("guardiabox.sidecar.app")
 
 
 @asynccontextmanager
-async def _lifespan(_: FastAPI) -> AsyncIterator[None]:
-    """FastAPI lifespan hook: log startup + leave room for SessionStore wiring.
+async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """FastAPI lifespan hook: startup log + SessionStore zero-fill on shutdown.
 
-    The session-store zero-fill on shutdown (ADR-0016 §B) lands in G-03;
-    today this hook is intentionally minimal so each Phase G commit
-    extends a working state instead of replacing one.
+    On graceful shutdown we tear down every active vault session so
+    the buffers holding admin keys and per-user vault keys are
+    zero-filled before the process image leaves memory. Python's
+    immutable ``bytes`` copies still outlive zero-fill, but the
+    mutable bytearrays we own do not (cf. THREAT_MODEL section 4.5).
     """
     _log.info("sidecar.startup", version=__version__)
     try:
         yield
     finally:
-        _log.info("sidecar.shutdown")
+        store: SessionStore | None = getattr(app.state, "session_store", None)
+        reaped = store.close_all() if store is not None else 0
+        _log.info("sidecar.shutdown", sessions_reaped=reaped)
 
 
 def create_app(
@@ -90,6 +96,11 @@ def create_app(
     )
     app.state.session_token = session_token
     app.state.settings = resolved_settings
+    # SessionStore TTL = auto_lock_minutes (cf. ADR-0016 sec B).
+    # Sliding expiry on access; zero-fill on close / lifespan shutdown.
+    app.state.session_store = SessionStore(
+        ttl_seconds=resolved_settings.auto_lock_minutes * 60,
+    )
 
     # Auth middleware (ADR-0016 sec A): every /api/v1/* request must
     # carry X-GuardiaBox-Token. /healthz, /readyz, /version, and
@@ -100,4 +111,8 @@ def create_app(
     # because the sidecar boot smoke test needs a route to hit before
     # the auth middleware lands in G-02.
     app.include_router(build_health_router(), tags=["health"])
+    # Vault unlock / lock / status (G-03). Auth-protected by the
+    # token middleware; the body of /unlock carries the admin
+    # password as a Pydantic SecretStr.
+    app.include_router(build_vault_router())
     return app
