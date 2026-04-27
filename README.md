@@ -61,7 +61,7 @@ Trois interfaces utilisateur partagent le même cœur Python :
 
 ## Fonctionnalités
 
-### Version livrée sur `main` (au 2026-04-24)
+### Version livrée sur `main` (au 2026-04-27)
 
 - ✅ Chiffrer / déchiffrer un fichier ou un message (AES-GCM + PBKDF2 /
   Argon2id), specs 001 + 002.
@@ -76,11 +76,23 @@ Trois interfaces utilisateur partagent le même cœur Python :
 - ✅ Inspection d'un conteneur `.crypt` sans déchiffrement (`guardiabox inspect`).
 - ✅ Menu console interactif `guardiabox menu` (CDC F-7 — trois actions CDC +
   inspection + suppression sécurisée).
+- ✅ **Multi-utilisateurs locaux** (spec 000-multi-user) — base SQLite avec
+  chiffrement colonne par colonne (AES-GCM + HMAC index, ADR-0011) et
+  triggers `audit_log` append-only.
+- ✅ Keystore par utilisateur (RSA-4096 + clé de coffre AES-256) avec
+  `create` / `unlock` / `change_password` (re-wrap sans re-chiffrer
+  les `.crypt`).
+- ✅ Journal d'audit hash-chained (`security.audit.append/verify`),
+  vérification d'intégrité via `guardiabox doctor --verify-audit`.
+- ✅ CLI multi-utilisateur : `guardiabox init`, `guardiabox user
+{create,list,show,delete}`, `guardiabox history --filter --format`,
+  `guardiabox doctor`.
+- ✅ Flag opt-in `--vault-user <name>` sur `encrypt` / `decrypt` qui
+  enregistre `file.encrypt` / `file.decrypt` dans le journal d'audit
+  et persiste un `vault_items` row (T-000mu.13).
 
 ### Roadmap — à implémenter avant la soutenance
 
-- 🔨 Multi-utilisateurs locaux (SQLCipher + keystore RSA) — spec 000-multi-user.
-- 🔨 Historique des opérations (audit log hash-chained) — livré avec multi-user.
 - 🔨 Partage entre utilisateurs locaux (RSA-OAEP hybride) — spec 003.
 - 🔨 Cryptographic erase (effacement clé + unlink `.crypt`) — spec 004 Phase B2.
 - 🔨 TUI Textual — spec 000-tui.
@@ -148,6 +160,21 @@ uv run guardiabox inspect rapport.pdf.crypt
 
 # Supprimer de manière sécurisée (DoD 3-pass ; prévient sur SSD)
 uv run guardiabox secure-delete rapport.pdf --passes 3
+
+# Initialiser le coffre multi-utilisateur (~/.guardiabox/vault.db)
+uv run guardiabox init
+
+# Gérer les utilisateurs locaux
+uv run guardiabox user create alice
+uv run guardiabox user list
+uv run guardiabox user show alice
+
+# Consulter le journal d'audit + vérifier la chaîne d'intégrité
+uv run guardiabox history --limit 50 --format table
+uv run guardiabox doctor --verify-audit
+
+# Encrypt avec audit (--vault-user opt-in)
+uv run guardiabox encrypt rapport.pdf --vault-user alice
 
 # TUI
 uv run guardiabox-tui
