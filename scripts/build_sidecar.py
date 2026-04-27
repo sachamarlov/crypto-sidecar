@@ -12,21 +12,37 @@ Outputs::
 
     src/guardiabox/ui/tauri/src-tauri/binaries/guardiabox-sidecar-<triple>(.exe)
 
-Hidden imports / collect-all rationale:
+Collection strategy (rationale)
+-------------------------------
 
-* ``--collect-all guardiabox`` -- our own package; pulls every
-  submodule including the Alembic migrations under
-  ``persistence/migrations/versions/``.
-* ``--collect-all cryptography`` -- the hazmat layer ships compiled
-  backends that PyInstaller's static analysis misses.
-* ``--collect-all sqlalchemy`` -- async dialect modules
-  (``sqlalchemy.dialects.sqlite.aiosqlite``) imported lazily.
-* ``--collect-all alembic`` -- runtime migration discovery.
-* ``--hidden-import argon2`` + ``--hidden-import argon2._ffi``
-  -- argon2-cffi's compiled binding lives under a name PyInstaller
-  cannot resolve from the imports alone.
-* ``--hidden-import aiosqlite`` -- imported via SQLAlchemy URL string.
-* ``--hidden-import zxcvbn`` -- the password evaluator.
+The sidecar has two classes of dependencies, handled differently:
+
+1. **Our own package** (``guardiabox``):
+   ``--collect-submodules guardiabox`` -- pulls every Python submodule
+   including ``persistence/migrations/versions/*.py``. We deliberately
+   do **not** use ``--collect-all guardiabox``; that flag traverses
+   the source tree as data files, which accidentally aspires
+   ``ui/tauri/frontend/node_modules/.../*.d.ts.map`` if the developer
+   ran ``pnpm install`` -- the stray data files break PyInstaller
+   on Windows long-paths.
+
+2. **External libraries with hidden / dynamic imports**:
+   * ``--collect-all cryptography`` -- the hazmat layer ships compiled
+     backends that PyInstaller's static analysis misses.
+   * ``--collect-all sqlalchemy`` -- async dialect modules
+     (``sqlalchemy.dialects.sqlite.aiosqlite``) imported lazily.
+   * ``--collect-all alembic`` -- runtime migration discovery.
+   * ``--hidden-import argon2`` + ``--hidden-import argon2._ffi``
+     -- argon2-cffi's compiled binding lives under a name PyInstaller
+     cannot resolve from the imports alone.
+   * ``--hidden-import aiosqlite`` -- imported via a SQLAlchemy URL
+     string, never as a Python ``import`` statement.
+   * ``--hidden-import zxcvbn`` -- the password strength evaluator.
+
+3. **Explicit exclusion** of the frontend tree:
+   ``--exclude-module guardiabox.ui.tauri.frontend`` -- the React
+   sources never run inside the Python interpreter; excluding them
+   shaves both build time and binary size.
 
 The smoke test (``--smoke-test``) spawns the produced binary, parses
 its handshake stdout line, hits ``GET /healthz`` with the launch
@@ -116,14 +132,20 @@ def _pyinstaller_cmd(*, output_name: str, release: bool) -> list[str]:
         "--onefile",
         "--name",
         output_name,
-        "--collect-all",
+        # Our package: Python submodules only. NOT --collect-all (which
+        # would aspire frontend/node_modules data files; cf. module
+        # docstring).
+        "--collect-submodules",
         "guardiabox",
+        # External libs: --collect-all is correct -- their data + binary
+        # contents are part of the runtime contract.
         "--collect-all",
         "cryptography",
         "--collect-all",
         "sqlalchemy",
         "--collect-all",
         "alembic",
+        # Hidden imports PyInstaller's static analysis cannot resolve.
         "--hidden-import",
         "argon2",
         "--hidden-import",
@@ -132,6 +154,11 @@ def _pyinstaller_cmd(*, output_name: str, release: bool) -> list[str]:
         "aiosqlite",
         "--hidden-import",
         "zxcvbn",
+        # The React frontend is shipped separately by Tauri; never
+        # imported by the Python interpreter. Excluding it shrinks the
+        # build + sidesteps PyInstaller's long-path issues on Windows.
+        "--exclude-module",
+        "guardiabox.ui.tauri.frontend",
         "--distpath",
         str(TAURI_BINARIES),
         "--workpath",

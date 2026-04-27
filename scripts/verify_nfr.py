@@ -171,8 +171,20 @@ def _measure_sidecar_idle_rss(binary_override: Path | None = None) -> int | None
             print(f"WARN: unexpected handshake: {line!r}", file=sys.stderr)
             return None
         time.sleep(5.0)  # let warmup garbage settle
+        # PyInstaller --onefile spawns a bootloader that extracts the
+        # bundle to %TEMP% and re-execs as a child Python process; the
+        # bootloader's own RSS is small (~8 MiB) and unrelated to the
+        # actual uvicorn footprint. Sum the parent + every descendant
+        # so the measurement reflects the real working set the user
+        # pays for.
         ps = psutil.Process(proc.pid)
-        rss_mib: float = ps.memory_info().rss / (1024 * 1024)
+        rss_total: int = ps.memory_info().rss
+        for child in ps.children(recursive=True):
+            try:
+                rss_total += child.memory_info().rss
+            except psutil.NoSuchProcess:
+                continue
+        rss_mib: float = rss_total / (1024 * 1024)
         return int(rss_mib)
     finally:
         proc.terminate()

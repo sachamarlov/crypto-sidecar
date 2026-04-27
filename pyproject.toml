@@ -126,6 +126,11 @@ sqlcipher-source = [
 build = [
     "pyinstaller>=6.11.0",
     "pyinstaller-hooks-contrib>=2024.10",
+    # psutil is used by scripts/verify_nfr.py to sample the sidecar's
+    # idle RSS (NFR-4). The verify_nfr.py script gracefully degrades
+    # when it is missing; declaring it under [build] keeps NFR
+    # measurement available wherever the build pipeline runs.
+    "psutil>=6.0.0",
 ]
 
 docs = [

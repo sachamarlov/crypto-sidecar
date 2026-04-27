@@ -6,17 +6,17 @@
 
 Last refresh: **2026-04-27** (post Phase I).
 
-| Code  | Requirement                                                        | Verified by                              | Status  |
-| ----- | ------------------------------------------------------------------ | ---------------------------------------- | ------- |
-| NFR-1 | Encrypt + decrypt >= 100 MiB/s on a modern laptop SSD              | `tests/perf/test_throughput.py`          | OK      |
-| NFR-2 | KDF derivation 50 ms <= T <= 1 s on the same hardware              | `tests/perf/test_kdf_timing.py`          | OK      |
-| NFR-3 | Cold start CLI < 200 ms ; cold start GUI < 1.5 s                   | `scripts/verify_nfr.py` + CI release job | partial |
-| NFR-4 | Sidecar memory footprint < 100 MiB at idle                         | `scripts/verify_nfr.py` + CI release job | OK (CI) |
-| NFR-5 | Distributable binary (Windows) <= 80 MiB after PyInstaller + Tauri | `scripts/verify_nfr.py` + CI release job | OK (CI) |
-| NFR-6 | All UI strings localised (FR + EN) via `react-i18next`             | spec 000-tauri-frontend H-12             | OK      |
-| NFR-7 | WCAG 2.2 AA accessibility on the GUI                               | H-13 (axe-playwright) + manual review    | partial |
-| NFR-8 | Test coverage >= 80 % overall, >= 95 % core/security               | `scripts/check_coverage_gates.py`        | OK      |
-| NFR-9 | Lint, type, tests, security all green for every merge              | `.github/workflows/ci.yml`               | OK      |
+| Code  | Requirement                                                        | Measured (post-build)                  | Verified by                              | Status |
+| ----- | ------------------------------------------------------------------ | -------------------------------------- | ---------------------------------------- | ------ |
+| NFR-1 | Encrypt + decrypt >= 100 MiB/s on a modern laptop SSD              | n/a (perf test markers)                | `tests/perf/test_throughput.py`          | OK     |
+| NFR-2 | KDF derivation 50 ms <= T <= 1 s on the same hardware              | n/a (perf test markers)                | `tests/perf/test_kdf_timing.py`          | OK     |
+| NFR-3 | Cold start CLI < 200 ms ; cold start GUI < 1.5 s                   | CLI: ~1900 ms ; GUI: ~5700 ms          | `scripts/verify_nfr.py` + CI release job | DEBT   |
+| NFR-4 | Sidecar memory footprint < 100 MiB at idle                         | **116 MiB** (parent + child processes) | `scripts/verify_nfr.py` + CI release job | DEBT   |
+| NFR-5 | Distributable binary (Windows) <= 80 MiB after PyInstaller + Tauri | **41.7 MiB** (sidecar) ; TBD Tauri     | `scripts/verify_nfr.py` + CI release job | OK     |
+| NFR-6 | All UI strings localised (FR + EN) via `react-i18next`             | n/a                                    | spec 000-tauri-frontend H-12             | OK     |
+| NFR-7 | WCAG 2.2 AA accessibility on the GUI                               | n/a (manual)                           | H-13 (axe-playwright) + manual review    | DEBT   |
+| NFR-8 | Test coverage >= 80 % overall, >= 95 % core/security               | n/a (517 unit tests pass)              | `scripts/check_coverage_gates.py`        | OK     |
+| NFR-9 | Lint, type, tests, security all green for every merge              | n/a                                    | `.github/workflows/ci.yml`               | OK     |
 
 ## Detailed evidence
 
@@ -31,68 +31,105 @@ the bundled binary).
 
 | Environment                                | Measured | Target | Verdict |
 | ------------------------------------------ | -------- | ------ | ------- |
-| Dev (`uv run python -m guardiabox --help`) | ~2150 ms | 200 ms | FAIL    |
-| Bundled binary (planned for Nuitka)        | TBD      | 200 ms | TBD     |
+| Dev (`uv run python -m guardiabox --help`) | ~1900 ms | 200 ms | DEBT    |
+| Bundled CLI binary                         | n/a      | 200 ms | TBD     |
 
-The dev measurement includes ~2 s of Python interpreter boot +
+The dev measurement includes ~1.7 s of Python interpreter boot +
 import-time work (`cryptography`, `sqlalchemy`, `alembic`,
 `fastapi`, `typer`, `rich`). The 200 ms target was set assuming a
-**bundled CLI binary** -- not the dev-time `python -m`
-invocation.
+**bundled CLI binary** -- which we do not produce yet (Phase I
+ships only the sidecar binary; a separate CLI binary would
+duplicate ~30 MiB of Python runtime on disk).
 
 ADR-0012 commits the project to a Nuitka migration after the CDC
-delivery; that migration is the path back under 200 ms because
-Nuitka eliminates the Python interpreter boot cost. The current
-gap is therefore tracked, documented, and bounded -- not silently
-accepted as a regression.
+delivery; Nuitka eliminates the Python interpreter boot cost and
+brings cold-start under 500 ms. The current gap is therefore
+tracked, documented, and bounded -- not silently accepted as a
+regression.
 
 #### GUI cold start (target < 1.5 s)
 
-Measured in CI by `nfr-verification` job in `.github/workflows/
-release.yml`. The proxy used is "Tauri spawn -> sidecar handshake
-on stdout"; in practice the React lock screen renders ~50-150 ms
-before this proxy fires (the WebView mount overlaps with sidecar
-boot on Windows 11 with WebView2 cached).
+Measured locally on Windows 11 SSD via `verify_nfr.py
+--gui-binary <sidecar.exe>`:
 
-The bundled `.exe` typically fires the handshake within 600-900
-ms on a modern laptop SSD; the 1.5 s threshold has 600+ ms of
-headroom for slower hardware.
+| Environment                          | Measured | Target  | Verdict |
+| ------------------------------------ | -------- | ------- | ------- |
+| PyInstaller --onefile sidecar (cold) | ~5700 ms | 1500 ms | DEBT    |
+
+**Why the gap**: PyInstaller `--onefile` archives the entire
+Python runtime + every dep into a single self-extracting bundle.
+On every cold start the bootloader extracts the bundle to a
+unique `%TEMP%\_MEIxxxxxx` directory before the embedded Python
+interpreter spins up. ADR-0012 anticipated this exactly:
+
+> Cold start extracts to %TEMP%, 2-5 s on SSD, 10-15 s on HDD.
+
+5.7 s is the upper bound of that range on a fresh boot when the
+filesystem cache is cold. Subsequent launches in the same
+session drop to ~3 s (cache warm). Mitigation: ADR-0012's Nuitka
+migration brings cold-start back to ~500 ms. The CDC reviewer is
+on a known-spec laptop -- the demo runs from a warm cache and
+sits closer to the 3 s mark.
+
+**Trigger to escalate Nuitka before CDC** (per ADR-0012):
+cold start > 8 s on the reviewer's laptop. We are at 5.7 s on the
+dev workstation; the trigger is not crossed. If a reviewer
+machine pushes it past 8 s during the demo, the Nuitka migration
+moves up.
 
 ### NFR-4 -- Sidecar idle memory
 
 `scripts/verify_nfr.py --sidecar-only` spawns the bundled
 sidecar, waits for the handshake, sleeps 5 s for warmup garbage
-to settle, then samples `psutil.Process(pid).memory_info().rss`.
+to settle, then sums `memory_info().rss` of the parent process
+**plus every descendant** (PyInstaller `--onefile` boots a
+bootloader that re-execs as a child Python; sampling only the
+parent under-reports by ~100 MiB).
 
-Reference measurements from the CI Linux runner (artefact
-`nfr-report.json` attached to every release):
+Reference measurement on Windows 11, PyInstaller `--release`
+build:
 
-| Build mode           | Measured RSS | Target  | Verdict |
-| -------------------- | ------------ | ------- | ------- |
-| `--release` strip    | ~62-78 MiB   | 100 MiB | OK      |
-| `--release` no-strip | ~75-95 MiB   | 100 MiB | OK      |
+| Build mode                       | Measured RSS | Target  | Verdict |
+| -------------------------------- | ------------ | ------- | ------- |
+| `--onefile --release` Windows PE | **116 MiB**  | 100 MiB | DEBT    |
 
-The `--strip` flag shaves ~15 MiB on Linux ELF (no-op on Windows
-PE). FastAPI + uvicorn + cryptography + SQLAlchemy idle is the
-floor; we sit comfortably under the 100 MiB ceiling.
+**The 16 MiB overshoot** is dominated by the embedded Python
+interpreter + the eager-loaded `cryptography`, `sqlalchemy`,
+`alembic`, `fastapi`, `uvicorn` modules. None of these can be
+trimmed without changing the runtime contract.
+
+Two paths to bring NFR-4 back under 100 MiB:
+
+1. **Nuitka migration** (ADR-0012, post-CDC): native compiled
+   binary loads only the symbols actually called; typical RSS
+   drops by 30-40 %. This is the documented mitigation.
+2. **`--onedir` instead of `--onefile`**: skips the bootloader
+   re-exec and the `%TEMP%` extraction; saves ~15 MiB but ships
+   ~250 files instead of one. Rejected for MVP because the user
+   experience of an 8000-file install (Tauri + Python runtime
+   - Node bundles) is poor.
+
+**For the v0.1.0 release we accept the 16 MiB gap as
+documented technical debt.** No silent regression; the figure
+is published, the path forward is in ADR-0012.
 
 ### NFR-5 -- Distributable binary size
 
-Two artefacts are measured: the **sidecar binary** (PyInstaller
+Two artefacts in scope: the **sidecar binary** (PyInstaller
 output) and the **Tauri bundle** (NSIS `.exe`).
 
-| Artefact                         | Typical size | Target | Verdict    |
-| -------------------------------- | ------------ | ------ | ---------- |
-| Sidecar Linux ELF                | ~40-50 MiB   | 80 MiB | OK         |
-| Sidecar Windows PE               | ~55-65 MiB   | 80 MiB | OK         |
-| Sidecar macOS Mach-O             | ~50-60 MiB   | 80 MiB | OK         |
-| Tauri bundle Windows .exe (NSIS) | ~70-80 MiB   | 80 MiB | OK (tight) |
-| Tauri bundle Windows .msi        | ~75-85 MiB   | 80 MiB | borderline |
+| Artefact                         | Measured (local Win11) | Target | Verdict |
+| -------------------------------- | ---------------------- | ------ | ------- |
+| Sidecar Windows PE (--release)   | **41.7 MiB**           | 80 MiB | OK      |
+| Sidecar Linux ELF (CI)           | TBD                    | 80 MiB | TBD     |
+| Sidecar macOS Mach-O (CI)        | TBD                    | 80 MiB | TBD     |
+| Tauri bundle Windows .exe (NSIS) | TBD                    | 80 MiB | TBD     |
+| Tauri bundle Windows .msi        | TBD                    | 80 MiB | TBD     |
 
-The MSI is borderline because `WiX` bundles the WebView2 runtime
-bootstrapper, which adds ~7 MiB. ADR-0012 lists this as one of
-the explicit triggers for the Nuitka migration -- if MSI ever
-crosses 90 MiB we escalate.
+The Windows PE sidecar comes in at **52 % of the budget**, so
+even if the Tauri shell adds 30+ MiB on top we have head-room
+for the v0.1.0 release. Cross-platform numbers fill in once the
+release pipeline runs (gated by GitHub Actions billing).
 
 CI fails the `nfr-verification` job when **any** measured
 artefact exceeds 80 MiB. The `release.yml` job does not silently
@@ -147,8 +184,17 @@ on `release: published`. CI gate breakdown: 5 hard gates (jobs
 
 ### Open items at v0.1.0
 
-- NFR-3 CLI cold start gap closed by the Nuitka migration
-  (ADR-0012, post-CDC).
-- NFR-7 axe-playwright automated audit (#97 H-13).
-- The MSI 80 MiB headroom is tight; tracked in ADR-0012 as a
-  Nuitka escalation trigger.
+| Gap                                  | Measured | Target  | Mitigation                     |
+| ------------------------------------ | -------- | ------- | ------------------------------ |
+| NFR-3 CLI cold start                 | ~1900 ms | 200 ms  | ADR-0012 Nuitka migration      |
+| NFR-3 GUI cold start (cold cache)    | ~5700 ms | 1500 ms | ADR-0012 Nuitka migration      |
+| NFR-4 sidecar idle RSS               | 116 MiB  | 100 MiB | ADR-0012 Nuitka migration      |
+| NFR-7 axe-playwright automated audit | n/a      | n/a     | #97 H-13 (post-CDC follow-up)  |
+| NFR-3/4/5 cross-platform measurement | n/a      | n/a     | Unblock GitHub Actions billing |
+
+**Honesty over green checkmarks.** Three of four NFR-3/4 numbers
+overshoot the published target. Each overshoot was anticipated
+by ADR-0012 (PyInstaller --onefile cold-start + RAM cost), is
+tracked in writing, and has a documented mitigation path. The
+v0.1.0 release ships with these gaps clearly disclosed; the
+v0.2.0 milestone (Nuitka migration) is the path back inside.
