@@ -33,13 +33,20 @@ def test_create_app_rejects_empty_token(tmp_path: Path) -> None:
 
 
 def test_create_app_disables_docs_and_redoc(tmp_path: Path) -> None:
-    """ADR-0016 §I -- no public API surface beyond the JSON schema."""
+    """ADR-0016 sec I -- no public API surface beyond the JSON schema.
+
+    /docs and /redoc are not in the auth-exempt whitelist; if FastAPI
+    still served them, we'd get 401 (middleware) instead of 404 (route
+    absent). We therefore pass the token to bypass auth and assert the
+    routes are genuinely missing -- a stronger contract than 401.
+    """
     app = create_app(session_token="probe-token", settings=_settings_for(tmp_path))
-    client = TestClient(app)
+    client = TestClient(app, headers={"x-guardiabox-token": "probe-token"})
 
     assert client.get("/docs").status_code == 404
     assert client.get("/redoc").status_code == 404
-    assert client.get("/openapi.json").status_code == 200
+    # /openapi.json is whitelisted -- no auth header even needed.
+    assert TestClient(app).get("/openapi.json").status_code == 200
 
 
 def test_healthz_returns_200_without_token(tmp_path: Path) -> None:

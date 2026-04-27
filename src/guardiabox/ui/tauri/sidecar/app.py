@@ -24,6 +24,7 @@ from fastapi import FastAPI
 from guardiabox import __version__
 from guardiabox.config import Settings, get_settings
 from guardiabox.logging import get_logger
+from guardiabox.ui.tauri.sidecar.api.middleware import TokenAuthMiddleware
 from guardiabox.ui.tauri.sidecar.api.v1.health import build_health_router
 
 __all__ = ["create_app"]
@@ -89,6 +90,11 @@ def create_app(
     )
     app.state.session_token = session_token
     app.state.settings = resolved_settings
+
+    # Auth middleware (ADR-0016 sec A): every /api/v1/* request must
+    # carry X-GuardiaBox-Token. /healthz, /readyz, /version, and
+    # /openapi.json are whitelisted -- see AUTH_EXEMPT_PATHS.
+    app.add_middleware(TokenAuthMiddleware)
 
     # Health endpoints (G-09) are exempt from auth; they ship in G-01
     # because the sidecar boot smoke test needs a route to hit before
