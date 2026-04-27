@@ -168,3 +168,4 @@ _site/
 tmp/
 temp/
 .tmp/
+nfr-report-local.json
