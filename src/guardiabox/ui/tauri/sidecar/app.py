@@ -25,6 +25,8 @@ from guardiabox import __version__
 from guardiabox.config import Settings, get_settings
 from guardiabox.logging import get_logger
 from guardiabox.ui.tauri.sidecar.api.middleware import TokenAuthMiddleware
+from guardiabox.ui.tauri.sidecar.api.v1.decrypt import build_decrypt_router
+from guardiabox.ui.tauri.sidecar.api.v1.encrypt import build_encrypt_router
 from guardiabox.ui.tauri.sidecar.api.v1.health import build_health_router
 from guardiabox.ui.tauri.sidecar.api.v1.vault import build_vault_router
 from guardiabox.ui.tauri.sidecar.state import SessionStore
@@ -115,4 +117,8 @@ def create_app(
     # token middleware; the body of /unlock carries the admin
     # password as a Pydantic SecretStr.
     app.include_router(build_vault_router())
+    # Encrypt / decrypt routers (G-04). File-mode only for now; the
+    # ``vault_user`` audit hook lands with G-06 (users router).
+    app.include_router(build_encrypt_router())
+    app.include_router(build_decrypt_router())
     return app
