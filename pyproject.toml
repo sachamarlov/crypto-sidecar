@@ -57,6 +57,7 @@ dependencies = [
     "pydantic>=2.10.0",
     "pydantic-settings>=2.7.0",
     "httpx>=0.28.0",
+    "slowapi>=0.1.9",
     # --- Persistence ---
     # SQLCipher is required for at-rest database encryption (ADR-0003).
     # Linux: pre-built wheel via sqlcipher3-binary.

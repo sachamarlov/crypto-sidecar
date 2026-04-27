@@ -20,11 +20,16 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from slowapi.errors import RateLimitExceeded
 
 from guardiabox import __version__
 from guardiabox.config import Settings, get_settings
 from guardiabox.logging import get_logger
 from guardiabox.ui.tauri.sidecar.api.middleware import TokenAuthMiddleware
+from guardiabox.ui.tauri.sidecar.api.rate_limit import (
+    limiter,
+    rate_limit_exceeded_handler,
+)
 from guardiabox.ui.tauri.sidecar.api.v1.audit import build_audit_router
 from guardiabox.ui.tauri.sidecar.api.v1.decrypt import build_decrypt_router
 from guardiabox.ui.tauri.sidecar.api.v1.doctor import build_doctor_router
@@ -110,6 +115,10 @@ def create_app(
     app.state.session_store = SessionStore(
         ttl_seconds=resolved_settings.auto_lock_minutes * 60,
     )
+    # Rate limiter (ADR-0016 sec D): per-IP buckets via slowapi.
+    # Decorators on individual routes will reference ``app.state.limiter``.
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
     # Auth middleware (ADR-0016 sec A): every /api/v1/* request must
     # carry X-GuardiaBox-Token. /healthz, /readyz, /version, and
