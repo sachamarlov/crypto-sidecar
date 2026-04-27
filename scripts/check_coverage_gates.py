@@ -26,6 +26,7 @@ COVERAGE_XML = Path("coverage.xml")
 GATES: dict[str, float] = {
     "src/guardiabox/core": 95.0,
     "src/guardiabox/security": 95.0,
+    "src/guardiabox/ui/tauri/sidecar": 90.0,
 }
 
 

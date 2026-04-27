@@ -69,6 +69,47 @@ decorators (G-11.b); `pnpm-lock.yaml` commit + CI activation
 (H-17) gated on a green local `pnpm install + lint + typecheck
 + test`.
 
+### Added (Phase G follow-ups — G-10/G-16/G-17/G-18/G-19)
+
+- **WebSocket `/api/v1/stream` (G-10)**: per-session pub/sub via
+  `StreamHub` (publisher / subscriber pattern with bounded
+  `asyncio.Queue` for back-pressure, fan-out across multiple
+  subscribers per session). Auth via query string (browser WS
+  clients cannot set custom headers); constant-time token
+  compare; session validation against the `SessionStore`. Frame
+  shape: `{event, operation_id, ...}` with the four states
+  `started | progress | done | error`. The error frame carries
+  the constant anti-oracle string only (ADR-0016 §C).
+- **CI sidecar build matrix (G-16)**: new `sidecar-build-linux`
+  job runs `scripts/build_sidecar.py --release`, uploads the
+  PyInstaller artefact, and the Rust job downloads it before
+  `cargo test`. This unblocks the previously red Rust gate
+  (`tauri::generate_context!()` no longer panics on missing
+  `externalBin`).
+- **Integration test `test_full_lifecycle_init_unlock_users_share_accept` (G-17)**:
+  full E2E driver of the sidecar HTTP surface (init → unlock →
+  2 users → encrypt → share → accept → audit verify) using
+  `fastapi.testclient.TestClient`. Confirms every router
+  co-operates and that the hash-chained audit log stays intact
+  after a non-trivial sequence of writes.
+- **Integration test `test_sidecar_subprocess.py` (G-18)**:
+  spawns the bundled PyInstaller binary, parses the
+  `GUARDIABOX_SIDECAR=...` handshake line, hits `/healthz`
+  with the launch token, and `SIGTERM`s the process. Skips
+  cleanly when the binary is absent (CI matrix builds it
+  upstream; the dev workstation skip path lets local pytest
+  remain green without `--release`).
+- **Property tests (G-19)**: Hypothesis on
+  `_print_handshake` (every `(port, token)` pair produces a
+  parseable strict-format line; the parser rejects any non-
+  prefixed input) and on the Pydantic v2 schemas (every
+  arbitrary extra field is refused; `kdf` outside the
+  `Literal["pbkdf2", "argon2id"]` is refused). Locks the
+  Python/Rust contract at the property level.
+- **Coverage gate `src/guardiabox/ui/tauri/sidecar` ≥ 90 %**:
+  added to `scripts/check_coverage_gates.py` so a regression
+  in the sidecar surface fails CI rather than the global gate.
+
 ### Added (Phase G — spec 000-tauri-sidecar partial)
 
 - **FastAPI sidecar bound 127.0.0.1 only** (`SidecarSettings.host`

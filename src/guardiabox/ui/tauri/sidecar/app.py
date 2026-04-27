@@ -30,6 +30,7 @@ from guardiabox.ui.tauri.sidecar.api.rate_limit import (
     limiter,
     rate_limit_exceeded_handler,
 )
+from guardiabox.ui.tauri.sidecar.api.stream_hub import StreamHub
 from guardiabox.ui.tauri.sidecar.api.v1.audit import build_audit_router
 from guardiabox.ui.tauri.sidecar.api.v1.decrypt import build_decrypt_router
 from guardiabox.ui.tauri.sidecar.api.v1.doctor import build_doctor_router
@@ -41,6 +42,7 @@ from guardiabox.ui.tauri.sidecar.api.v1.secure_delete import build_secure_delete
 from guardiabox.ui.tauri.sidecar.api.v1.share import build_share_router
 from guardiabox.ui.tauri.sidecar.api.v1.users import build_users_router
 from guardiabox.ui.tauri.sidecar.api.v1.vault import build_vault_router
+from guardiabox.ui.tauri.sidecar.api.ws import build_ws_router
 from guardiabox.ui.tauri.sidecar.state import SessionStore
 
 __all__ = ["create_app"]
@@ -119,6 +121,10 @@ def create_app(
     # Decorators on individual routes will reference ``app.state.limiter``.
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+    # Stream hub (G-10): in-memory pub/sub for WebSocket progress
+    # events. Routers publish opportunistically when their request
+    # carries an ``operation_id`` query param.
+    app.state.stream_hub = StreamHub()
 
     # Auth middleware (ADR-0016 sec A): every /api/v1/* request must
     # carry X-GuardiaBox-Token. /healthz, /readyz, /version, and
@@ -150,4 +156,8 @@ def create_app(
     # Share / accept (G-05). Hybrid RSA-OAEP wrap + RSA-PSS sign;
     # anti-oracle preserved on accept failures (422 constant body).
     app.include_router(build_share_router())
+    # WebSocket /api/v1/stream (G-10). Auth via query string
+    # (browsers cannot set headers on WS); token compare is
+    # constant-time, session validated against the SessionStore.
+    app.include_router(build_ws_router())
     return app
