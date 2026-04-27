@@ -305,6 +305,7 @@ unfixable = [
     "PLC2701",# importing private module internals is legitimate in tests
     "PLC0415",# local imports are fine in helpers and fixtures
     "ERA001", # example command lines in KAT docstrings look like commented code
+    "PLR0917",# pytest fixtures are kw-injected, all-positional rule does not apply
 ]
 "src/guardiabox/ui/tauri/sidecar/**/*.py" = [
     "B008",   # FastAPI Depends() in defaults is the convention

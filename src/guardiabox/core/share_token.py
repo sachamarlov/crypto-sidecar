@@ -65,6 +65,7 @@ from guardiabox.core.exceptions import (
 )
 
 __all__ = [
+    "EMBEDDED_AAD",
     "MAX_WRAPPED_DEK_BYTES",
     "PERMISSION_READ",
     "PERMISSION_RESHARE",
@@ -73,9 +74,20 @@ __all__ = [
     "SIGNATURE_BYTES",
     "ParsedShareToken",
     "ShareTokenHeader",
+    "build_payload_for_signing",
     "read_token",
     "write_token",
 ]
+
+
+EMBEDDED_AAD: Final[bytes] = b"guardiabox/share/v1"
+"""AAD blob bound to every embedded ciphertext.
+
+The embedded ``.crypt`` is encrypted in a single AES-GCM call with a
+fresh DEK; the AAD ties that ciphertext to the share-token format.
+A future v2 share-token format must use a distinct AAD so a v1
+ciphertext cannot be lifted into a v2 envelope (and vice versa).
+"""
 
 
 SHARE_TOKEN_MAGIC: Final[bytes] = b"GBSH"

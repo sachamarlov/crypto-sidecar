@@ -23,9 +23,16 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from dataclasses import dataclass
+import hashlib
 from pathlib import Path
 import secrets
+import time
 from typing import IO
+from uuid import UUID
+
+from cryptography.exceptions import InvalidTag
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from guardiabox.core.constants import (
     AES_GCM_NONCE_BYTES,
@@ -49,9 +56,21 @@ from guardiabox.core.exceptions import (
     DecryptionError,
     DestinationAlreadyExistsError,
     DestinationCollidesWithSourceError,
+    IntegrityError,
     MessageTooLargeError,
+    ShareExpiredError,
 )
 from guardiabox.core.kdf import Argon2idKdf, Pbkdf2Kdf, kdf_for_id
+from guardiabox.core.rsa import RsaSign, RsaWrap
+from guardiabox.core.share_token import (
+    EMBEDDED_AAD,
+    PERMISSION_READ,
+    ParsedShareToken,
+    ShareTokenHeader,
+    build_payload_for_signing,
+    read_token,
+    write_token,
+)
 from guardiabox.fileio.atomic import atomic_writer
 from guardiabox.fileio.safe_path import resolve_within
 from guardiabox.fileio.streaming import iter_chunks
@@ -61,11 +80,13 @@ from guardiabox.security.password import assert_strong
 __all__ = [
     "DEFAULT_KDF",
     "ContainerInspection",
+    "accept_share",
     "decrypt_file",
     "decrypt_message",
     "encrypt_file",
     "encrypt_message",
     "inspect_container",
+    "share_file",
 ]
 
 DEFAULT_KDF: type[Pbkdf2Kdf] = Pbkdf2Kdf
@@ -648,3 +669,247 @@ def _password_bytes(password: str) -> bytes:
     import unicodedata
 
     return unicodedata.normalize("NFC", password).encode("utf-8")
+
+
+# ---------------------------------------------------------------------------
+# RSA share orchestration (T-003.04 + T-003.05)
+# ---------------------------------------------------------------------------
+#
+# These two functions implement the spec 003 hybrid cryptosystem. The
+# pattern is:
+#
+#   * sender takes a .crypt + their password, decrypts the source plaintext
+#     into memory (capped by MAX_IN_MEMORY_MESSAGE_BYTES), generates a fresh
+#     32-byte DEK, re-encrypts the plaintext with raw AES-GCM (no KDF -- the
+#     DEK *is* the symmetric key, single-use), wraps the DEK under the
+#     recipient's RSA-OAEP public key, signs the whole payload with their
+#     RSA-PSS private key, and writes the .gbox-share token.
+#
+#   * recipient parses the token, verifies the signature *first* (anti-
+#     oracle ordering), checks expiry, unwraps the DEK with their private
+#     key, decrypts the embedded ciphertext, and writes the plaintext.
+#
+# Trade-off: the in-memory cap means files larger than 10 MiB cannot be
+# shared today via this path. Streaming sharing is tracked as a follow-up
+# (no academic-grade requirement for it).
+
+
+def share_file(
+    *,
+    source: Path,
+    sender_password: str,
+    sender_user_id: UUID,
+    sender_private_key: rsa.RSAPrivateKey,
+    recipient_user_id: UUID,
+    recipient_public_key: rsa.RSAPublicKey,
+    output: Path,
+    expires_at: int = 0,
+    permission_flags: int = PERMISSION_READ,
+    force: bool = False,
+) -> Path:
+    """Produce a ``.gbox-share`` token from a ``.crypt`` source.
+
+    Args:
+        source: A ``.crypt`` file the sender owns. Decrypted in memory
+            with ``sender_password``; the resulting plaintext is then
+            re-encrypted under a fresh DEK that is wrapped for the
+            recipient.
+        sender_password: Password for ``source`` (NFC-normalised inside).
+        sender_user_id: Sender's UUID (for the audit chain on accept side).
+        sender_private_key: Sender's RSA private key (used to sign the
+            token).
+        recipient_user_id: Recipient's UUID.
+        recipient_public_key: Recipient's RSA public key (wraps the DEK).
+        output: Where to write the ``.gbox-share`` token. Atomically
+            written; refused if it already exists unless ``force=True``.
+        expires_at: Unix epoch seconds; ``0`` = never. Bound by the v1
+            uint64 field.
+        permission_flags: Bitfield (read / re-share). Defaults to
+            ``PERMISSION_READ``.
+        force: Overwrite an existing destination.
+
+    Returns:
+        The resolved output path.
+
+    Raises:
+        DecryptionError: If ``sender_password`` does not unlock ``source``.
+        MessageTooLargeError: If the source ``.crypt`` would decrypt to
+            more than :data:`MAX_IN_MEMORY_MESSAGE_BYTES`.
+        DestinationCollidesWithSourceError / DestinationAlreadyExistsError:
+            Standard guards (cf. encrypt_file / decrypt_file).
+        ValueError: For RSA-OAEP payload size or struct invariants.
+    """
+    source_resolved = source.resolve(strict=True)
+    output_resolved = output if output.is_absolute() else (Path.cwd() / output)
+    output_resolved = output_resolved.resolve()
+
+    if output_resolved == source_resolved:
+        raise DestinationCollidesWithSourceError(
+            f"share output cannot equal the source: {source_resolved}"
+        )
+    _check_dest_not_existing(output_resolved, force=force)
+
+    # Step 1: decrypt the source .crypt to plaintext (in memory; capped).
+    plaintext_bytes = decrypt_message(source_resolved, sender_password)
+
+    # Step 2-4: fresh DEK + raw AES-GCM encrypt + content hash. The DEK
+    # lives in a bytearray so we can zero-fill it before returning.
+    dek_buf = bytearray(secrets.token_bytes(AES_KEY_BYTES))
+    embedded_nonce = secrets.token_bytes(AES_GCM_NONCE_BYTES)
+    try:
+        embedded_ct = AESGCM(bytes(dek_buf)).encrypt(embedded_nonce, plaintext_bytes, EMBEDDED_AAD)
+        embedded = embedded_nonce + embedded_ct
+        content_sha256 = hashlib.sha256(embedded).digest()
+
+        # Step 5: wrap the DEK with the recipient's RSA-OAEP public key.
+        wrapped_dek = RsaWrap.wrap(bytes(dek_buf), recipient_public_key)
+    finally:
+        _zero_fill(dek_buf)
+
+    # Step 6: assemble header + sign payload + write atomically.
+    header = ShareTokenHeader(
+        sender_user_id=sender_user_id,
+        recipient_user_id=recipient_user_id,
+        content_sha256=content_sha256,
+        wrapped_dek=wrapped_dek,
+        expires_at=expires_at,
+        permission_flags=permission_flags,
+    )
+    payload_to_sign = build_payload_for_signing(header, embedded)
+    signature = RsaSign.sign(payload_to_sign, sender_private_key)
+    blob = write_token(header=header, embedded_ciphertext=embedded, signature=signature)
+
+    with atomic_writer(output_resolved) as out:
+        out.write(blob)
+
+    _log.info(
+        "vault.share.created",
+        sender_user_id=str(sender_user_id),
+        recipient_user_id=str(recipient_user_id),
+        embedded_size=len(embedded),
+        expires_at=expires_at,
+    )
+    return output_resolved
+
+
+def accept_share(
+    *,
+    source: Path,
+    recipient_private_key: rsa.RSAPrivateKey,
+    sender_public_key: rsa.RSAPublicKey,
+    expected_recipient_user_id: UUID,
+    output: Path,
+    now_epoch: int | None = None,
+    force: bool = False,
+) -> Path:
+    """Verify, unwrap, decrypt and write the plaintext from a share token.
+
+    Operation ordering enforces the anti-oracle discipline (ADR-0015):
+
+    1. Parse the on-disk bytes (no signature trust yet).
+    2. Verify the signature with ``sender_public_key`` -- a tampered
+       token surfaces as :class:`IntegrityError` here, before any unwrap
+       or decrypt happens.
+    3. Check ``expected_recipient_user_id`` matches the token's
+       ``recipient_user_id`` -- raises :class:`IntegrityError` (uniform
+       failure mode, no "wrong recipient" oracle).
+    4. Check expiry -- :class:`ShareExpiredError` only after the token's
+       authenticity is established.
+    5. Verify ``content_sha256`` against the actual embedded bytes.
+    6. Unwrap the DEK with ``recipient_private_key``.
+    7. Decrypt the embedded ciphertext.
+    8. Write the plaintext atomically.
+
+    Args:
+        source: Path to a ``.gbox-share`` file.
+        recipient_private_key: Recipient's RSA private key (unwraps DEK).
+        sender_public_key: Sender's RSA public key (verifies signature).
+        expected_recipient_user_id: The recipient's UUID; the token's
+            field must match exactly.
+        output: Where to write the decrypted plaintext.
+        now_epoch: Override clock for tests. Defaults to ``int(time.time())``.
+        force: Overwrite an existing destination.
+
+    Returns:
+        The resolved output path.
+
+    Raises:
+        IntegrityError: Signature failure, recipient mismatch, content
+            hash mismatch, or DEK unwrap / AEAD decrypt failure (all
+            collapse to the same exception class -- anti-oracle).
+        ShareExpiredError: Token's ``expires_at`` is in the past.
+        DestinationAlreadyExistsError: Output exists and ``force=False``.
+    """
+    source_resolved = source.resolve(strict=True)
+    output_resolved = output if output.is_absolute() else (Path.cwd() / output)
+    output_resolved = output_resolved.resolve()
+    _check_dest_not_existing(output_resolved, force=force)
+
+    # Bound the read: the share is currently capped by the embedded
+    # ciphertext size (cf. share_file). 16 KiB header overhead plus the
+    # embedded ciphertext stays under MAX_IN_MEMORY_MESSAGE_BYTES + 16
+    # KiB, well below any reasonable RAM budget.
+    blob = source_resolved.read_bytes()
+
+    # Step 1: parse (no trust).
+    parsed: ParsedShareToken = read_token(blob)
+
+    # Step 2: verify signature FIRST. After this point, every header
+    # field is authentic.
+    RsaSign.verify(parsed.signature, parsed.payload_bytes, sender_public_key)
+
+    # Step 3: recipient match. We do a constant-time-ish comparison via
+    # UUID.bytes equality (UUID.__eq__ short-circuits but the leak is on
+    # public, low-entropy data, not secret).
+    if parsed.header.recipient_user_id != expected_recipient_user_id:
+        raise IntegrityError("share token addressed to a different recipient")
+
+    # Step 4: expiry.
+    now = now_epoch if now_epoch is not None else int(time.time())
+    if parsed.header.expires_at != 0 and now > parsed.header.expires_at:
+        raise ShareExpiredError(
+            f"share token expired (expires_at={parsed.header.expires_at}, now={now})"
+        )
+
+    # Step 5: content hash check (defence in depth -- the signature
+    # already covers these bytes, but verifying gives a clear-cut
+    # IntegrityError if a programming bug ever decoupled hash from
+    # ciphertext on the sender side).
+    actual_sha256 = hashlib.sha256(parsed.embedded_ciphertext).digest()
+    if actual_sha256 != parsed.header.content_sha256:
+        raise IntegrityError("embedded ciphertext hash mismatch")
+
+    # Step 6: unwrap DEK. Failure here means signature passed but the
+    # token was crafted with the wrong recipient's pubkey -- still
+    # IntegrityError for uniformity.
+    dek_buf = bytearray(RsaWrap.unwrap(parsed.header.wrapped_dek, recipient_private_key))
+    if len(dek_buf) != AES_KEY_BYTES:
+        _zero_fill(dek_buf)
+        raise IntegrityError(
+            f"unwrapped DEK has unexpected length {len(dek_buf)} (expected {AES_KEY_BYTES})"
+        )
+
+    # Step 7: decrypt embedded ciphertext.
+    if len(parsed.embedded_ciphertext) < AES_GCM_NONCE_BYTES + AES_GCM_TAG_BYTES:
+        _zero_fill(dek_buf)
+        raise IntegrityError("embedded ciphertext shorter than nonce + tag")
+    embedded_nonce = parsed.embedded_ciphertext[:AES_GCM_NONCE_BYTES]
+    embedded_ct = parsed.embedded_ciphertext[AES_GCM_NONCE_BYTES:]
+    try:
+        plaintext = AESGCM(bytes(dek_buf)).decrypt(embedded_nonce, embedded_ct, EMBEDDED_AAD)
+    except InvalidTag as exc:
+        raise IntegrityError("embedded AES-GCM authentication failed") from exc
+    finally:
+        _zero_fill(dek_buf)
+
+    # Step 8: write plaintext atomically.
+    with atomic_writer(output_resolved) as out:
+        out.write(plaintext)
+
+    _log.info(
+        "vault.share.accepted",
+        sender_user_id=str(parsed.header.sender_user_id),
+        recipient_user_id=str(parsed.header.recipient_user_id),
+        plaintext_size=len(plaintext),
+    )
+    return output_resolved

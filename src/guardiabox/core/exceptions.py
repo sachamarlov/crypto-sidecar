@@ -113,3 +113,17 @@ class MessageTooLargeError(GuardiaBoxError):
     Callers must route larger payloads through the file-based
     :func:`encrypt_file` / :func:`decrypt_file` API.
     """
+
+
+# ---- Share token (spec 003) ------------------------------------------------
+
+
+class ShareExpiredError(GuardiaBoxError):
+    """The ``.gbox-share`` token's ``expires_at`` is in the past.
+
+    Raised by :func:`accept_share` after the signature has verified, so
+    a tampered token still surfaces as :class:`IntegrityError` first
+    (anti-oracle ordering). Expiry is a legitimate, public-knowledge
+    failure — distinguishing it from "wrong recipient" or "wrong sender
+    pubkey" leaks no useful information to an attacker.
+    """
