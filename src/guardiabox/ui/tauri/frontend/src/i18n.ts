@@ -1,3 +1,5 @@
+import en from "@/i18n/en.json";
+import fr from "@/i18n/fr.json";
 import i18n from "i18next";
 import LanguageDetector from "i18next-browser-languagedetector";
 import { initReactI18next } from "react-i18next";
@@ -6,26 +8,18 @@ void i18n
   .use(LanguageDetector)
   .use(initReactI18next)
   .init({
-    fallbackLng: "en",
+    fallbackLng: "fr",
     supportedLngs: ["en", "fr"],
     interpolation: {
       escapeValue: false,
     },
+    detection: {
+      order: ["localStorage", "navigator"],
+      lookupLocalStorage: "guardiabox.lang",
+    },
     resources: {
-      en: {
-        translation: {
-          app: {
-            tagline: "Local secure vault. Encrypt, store, and share files without ever trusting a remote server.",
-          },
-        },
-      },
-      fr: {
-        translation: {
-          app: {
-            tagline: "Coffre-fort numérique local. Chiffrez, stockez et partagez vos fichiers sans jamais faire confiance à un serveur distant.",
-          },
-        },
-      },
+      en,
+      fr,
     },
   });
 
