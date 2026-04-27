@@ -127,3 +127,29 @@ class ShareExpiredError(GuardiaBoxError):
     failure — distinguishing it from "wrong recipient" or "wrong sender
     pubkey" leaks no useful information to an attacker.
     """
+
+
+# ---- Secure delete crypto-erase (spec 004 Phase B2) ------------------------
+
+
+class KeyNotFoundError(GuardiaBoxError):
+    """A vault item lookup by filename returned no row during crypto-erase.
+
+    Raised when ``crypto_erase`` is asked to operate on a ``.crypt`` file
+    that has no matching ``vault_items`` row in the DB — meaning the
+    file was either never registered with ``--vault-user``, was already
+    crypto-erased, or belongs to a different owner. The caller routes
+    this through ``ExitCode.PATH_OR_FILE`` (3) since it is a "target
+    not found" scenario from the user's standpoint.
+    """
+
+
+class CryptoEraseRequiresVaultUserError(GuardiaBoxError):
+    """``crypto-erase`` was invoked without ``--vault-user``.
+
+    Without the flag the file has no persisted metadata to erase: the
+    DEK lives only in the user's password-derived KDF chain, which the
+    cryptosystem cannot proactively destroy. The CLI directs the user
+    to ``--method overwrite`` instead, which is the only meaningful
+    irreversible action available in that mode.
+    """
