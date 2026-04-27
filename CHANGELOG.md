@@ -49,6 +49,25 @@ what is actually merged on `main`.
   `encrypt` / `decrypt` that records the action in the audit log
   (and, for encrypt, persists a `vault_items` row).
 
+### Added (Phase F — spec 000-tui Textual)
+- **TUI complète Textual 8.2.4** (`guardiabox-tui`) :
+  - GuardiaBoxApp + 6 screens (Dashboard, Encrypt, Decrypt, Share,
+    History, Settings) + 2 widgets réutilisables (PasswordField avec
+    zxcvbn live, Toast auto-dismissing)
+  - Global bindings : `e/d/s/h/c` pour les modals, `q` quit,
+    `Ctrl+L` pour basculer dark/light theme
+  - Reduced-motion probe (TERM=dumb ou CI=true) coupe les animations
+  - HistoryScreen affiche les 200 dernières entrées audit dans une
+    DataTable après prompt admin password
+  - SettingsScreen montre la config courante (alignée avec
+    `guardiabox config list`)
+  - ShareScreen redirige vers la CLI (full TUI wrap post-MVP)
+- **Anti-oracle préservé sur DecryptScreen** : `DecryptionError` et
+  `IntegrityError` collapsent vers `ANTI_ORACLE_MESSAGE`, même toast
+  uniforme.
+- 13 tests intégration via `App.run_test()` (DOM tree assertions,
+  pas snapshot — `pytest-textual-snapshot` reporté post-MVP).
+
 ### Added (Phase E — spec 000-cli residuals)
 - **`guardiabox config`** sub-Typer (`list` / `get`). Flattens the
   pydantic-settings tree into dotted keys (e.g.
