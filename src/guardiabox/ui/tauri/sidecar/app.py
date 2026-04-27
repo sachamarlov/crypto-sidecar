@@ -28,6 +28,7 @@ from guardiabox.ui.tauri.sidecar.api.middleware import TokenAuthMiddleware
 from guardiabox.ui.tauri.sidecar.api.v1.decrypt import build_decrypt_router
 from guardiabox.ui.tauri.sidecar.api.v1.encrypt import build_encrypt_router
 from guardiabox.ui.tauri.sidecar.api.v1.health import build_health_router
+from guardiabox.ui.tauri.sidecar.api.v1.users import build_users_router
 from guardiabox.ui.tauri.sidecar.api.v1.vault import build_vault_router
 from guardiabox.ui.tauri.sidecar.state import SessionStore
 
@@ -121,4 +122,7 @@ def create_app(
     # ``vault_user`` audit hook lands with G-06 (users router).
     app.include_router(build_encrypt_router())
     app.include_router(build_decrypt_router())
+    # Users CRUD (G-06). Requires both the launch token AND a vault
+    # session (X-GuardiaBox-Session header).
+    app.include_router(build_users_router())
     return app
