@@ -120,12 +120,28 @@ def test_init_weak_password_exits_generic(tmp_path: Path) -> None:
 
 @pytest.mark.integration
 def test_init_help_advertises_command() -> None:
+    """The --help output advertises every flag.
+
+    Rich-formatted help wraps text inside an ANSI-bordered panel and
+    can split flag names across columns on narrow terminals (Linux
+    runners default to ~80 cols, Windows is wider). We force a wide
+    NO_COLOR terminal and strip residual ANSI escapes so the
+    assertion stays renderer-agnostic.
+    """
+    import os
+    import re
+
+    env = {**os.environ, "TERM": "dumb", "NO_COLOR": "1", "COLUMNS": "200"}
     result = subprocess.run(
         [sys.executable, "-m", "guardiabox", "init", "--help"],
         capture_output=True,
         check=False,
         timeout=_TIMEOUT,
+        env=env,
     )
     assert result.returncode == ExitCode.OK
-    assert b"data-dir" in result.stdout
-    assert b"kdf" in result.stdout
+    decoded = result.stdout.decode("utf-8", errors="replace")
+    stripped = re.sub(r"\x1b\[[0-9;]*m", "", decoded)
+    flat = re.sub(r"\s+", " ", stripped)
+    assert "data-dir" in flat or "data_dir" in flat
+    assert "kdf" in flat
