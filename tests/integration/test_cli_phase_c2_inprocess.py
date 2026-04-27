@@ -322,10 +322,11 @@ def test_user_create_flow_rejects_duplicate(
 
 @pytest.mark.integration
 @pytest.mark.slow
-def test_user_list_flow_returns_strings(
+def test_user_list_flow_returns_dicts(
     vault_dir: Path,
     patched_passwords: Callable[..., None],
 ) -> None:
+    """Phase E refactor: _list_flow now returns list[dict] for --format json wiring."""
     patched_passwords(USER_PW, STRONG)
     asyncio.run(
         user_cmd._create_flow(  # noqa: SLF001
@@ -340,8 +341,11 @@ def test_user_list_flow_returns_strings(
     rows = asyncio.run(
         user_cmd._list_flow(data_dir=vault_dir, password_stdin=False)  # noqa: SLF001
     )
-    assert any("alice" in row for row in rows)
-    assert all("(id=" in row for row in rows)
+    assert len(rows) == 1
+    assert rows[0]["username"] == "alice"
+    assert "id" in rows[0]
+    assert "created_at" in rows[0]
+    assert "kdf_id" in rows[0]
 
 
 @pytest.mark.integration
@@ -350,6 +354,7 @@ def test_user_show_flow_returns_snapshot(
     vault_dir: Path,
     patched_passwords: Callable[..., None],
 ) -> None:
+    """Phase E refactor: _show_flow now returns dict[str, Any] | None."""
     patched_passwords(USER_PW, STRONG)
     asyncio.run(
         user_cmd._create_flow(  # noqa: SLF001
@@ -367,7 +372,9 @@ def test_user_show_flow_returns_snapshot(
         )
     )
     assert snapshot is not None
-    assert any("charlie" in line for line in snapshot)
+    assert snapshot["username"] == "charlie"
+    assert "failed_unlock_count" in snapshot
+    assert "kdf_id" in snapshot
 
 
 @pytest.mark.integration

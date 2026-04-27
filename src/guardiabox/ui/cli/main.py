@@ -36,8 +36,28 @@ def _root(
     ctx: typer.Context,
     *,
     version: bool = typer.Option(False, "--version", "-V", help="Show version and exit."),
+    quiet: bool = typer.Option(
+        False,
+        "--quiet",
+        "-q",
+        help="Réduire la verbosité (structlog ERROR + suppression des notes de succès).",
+    ),
+    verbose: bool = typer.Option(
+        False,
+        "--verbose",
+        help="Augmenter la verbosité (structlog DEBUG).",
+    ),
 ) -> None:
     """GuardiaBox CLI entry point."""
+    if quiet and verbose:
+        typer.echo("Erreur : --quiet et --verbose sont mutuellement exclusifs.", err=True)
+        raise typer.Exit(code=64)
+    if verbose:
+        _configure_logging(level="DEBUG")
+        os.environ["GUARDIABOX_LOG_LEVEL"] = "DEBUG"
+    elif quiet:
+        _configure_logging(level="ERROR")
+        os.environ["GUARDIABOX_QUIET"] = "1"
     if version:
         typer.echo(f"guardiabox {__version__}")
         raise typer.Exit
@@ -48,6 +68,7 @@ def _root(
 # defined above, hence the explicit E402 waiver.
 from guardiabox.ui.cli.commands import (  # noqa: E402
     accept as _accept,  # noqa: F401
+    config as _config,  # noqa: F401
     decrypt as _decrypt,  # noqa: F401
     doctor as _doctor,  # noqa: F401
     encrypt as _encrypt,  # noqa: F401
