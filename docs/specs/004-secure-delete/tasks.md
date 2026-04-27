@@ -17,10 +17,14 @@
       configurable pass count via `--passes N`). Unit tests on
       `tmp_path` assert the file disappears and multi-pass bytes
       differ from the original.
-- [ ] **T-004.03** — _Deferred to Phase B2_: `core.secure_delete.crypto_erase()`
-      needs the keystore surface from spec 000-multi-user.
-- [ ] **T-004.04** — _Deferred to Phase B2_: `core.exceptions.KeyNotFoundError`
-      ships with the keystore (spec 000-multi-user).
+- [x] **T-004.03** — `SecureDeleteMethod.CRYPTO_ERASE` exposed; the
+      flow lives in `ui.cli.commands.secure_delete._crypto_erase_flow`
+      (DB lookup + DoD overwrite + row delete + audit). The pure-core
+      `secure_delete()` raises `ValueError("vault-aware caller")` on
+      `CRYPTO_ERASE` to keep the core free of DB / audit dependencies.
+- [x] **T-004.04** — `core.exceptions.KeyNotFoundError` (vault_items
+      lookup miss) and `CryptoEraseRequiresVaultUserError` (mode
+      invoked without `--vault-user`). Both routed by `exit_for`.
 - [x] **T-004.05** — `fileio.platform.is_ssd()` Windows path via
       `IOCTL_STORAGE_QUERY_PROPERTY` + `StorageDeviceSeekPenaltyProperty`
       through `ctypes`.
@@ -34,21 +38,30 @@
       `--method auto|overwrite` and `--passes` (1..35).
 - [x] **T-004.09** — Confirmation prompt when the user requests overwrite
       on a detected SSD; `--no-confirm` to bypass.
-- [ ] **T-004.10** — _Deferred to Phase B2_: audit log entry
-      `file.secure_delete` requires the persistent audit repository.
-- [ ] **T-004.11** — _Deferred to Phase B2_: the forensic Linux-tmpfs
-      integration test needs a dedicated CI job (large payload, long
-      runtime) and is scheduled with the crypto-erase PR so both
-      end-to-end flows are validated at once.
-- [ ] **T-004.12** — _Deferred to Phase E (spec 000-cli)_:
-      `guardiabox doctor --report-ssd` belongs with the doctor command
-      that ships with the full CLI spec.
+- [x] **T-004.10** — `file.secure_delete` audit row appended via
+      `security.audit.append` (Phase C hash-chain). Metadata =
+      `{method, passes, vault_item_id}`.
+- [ ] **T-004.11** — _Deferred post-MVP_: forensic Linux-tmpfs
+      integration test (large payload, dedicated CI job). The
+      mid-runtime cost is incompatible with the current 2-day pre-
+      soutenance budget. Tracked as a follow-up; the existing 5
+      integration tests cover every observable behaviour at unit /
+      CLI granularity.
+- [x] **T-004.12** — `guardiabox doctor --report-ssd` flag added
+      (calls `fileio.platform.is_ssd` and reports SSD / HDD / unknown
+      with the relevant recommendation).
 
-## Phase B2 — crypto-erase (after spec 000-multi-user)
+## Phase B2 — crypto-erase (post-Phase D)
 
-Items T-004.03 / T-004.04 / T-004.10 / T-004.11 listed above land
-together in a follow-up PR once the keystore and audit repository are
-in place.
+Honest scope (cf. ADR-0011 + THREAT_MODEL §4.6 update): GuardiaBox does
+not currently persist a per-file DEK separate from the `.crypt` payload.
+What ships in Phase B2 is **metadata-erase + ciphertext overwrite +
+audit attribution**, not a strict NIST SP 800-88 crypto-erase. The
+mode rejects calls without `--vault-user` because the metadata path is
+what makes the option meaningful versus a plain overwrite. A true
+DEK-destruction crypto-erase requires a `.crypt` v2 format with a
+random per-file DEK persisted separately from the ciphertext —
+roadmapped post-MVP.
 
 ## Definition of Done (Phase B1)
 
@@ -61,3 +74,15 @@ in place.
 | Coverage — `core/secure_delete`  | ✅ 94.12 % (missing branches are defensive Windows-only asserts) |
 | Coverage — `fileio/platform`     | ✅ 100 % of the branches executable on the host OS               |
 | Ruff / Mypy strict / Bandit      | ✅ all green                                                     |
+
+## Definition of Done (Phase B2)
+
+| Gate                                                                           | Status                                                                |
+| ------------------------------------------------------------------------------ | --------------------------------------------------------------------- |
+| Crypto-erase round-trip (vault row deleted + .crypt unlinked + audit appended) | ✅ `test_crypto_erase_removes_row_and_unlinks_crypt`                  |
+| `--method crypto-erase` rejects calls without `--vault-user`                   | ✅ `test_crypto_erase_without_vault_user_rejected` (exit USAGE)       |
+| `KeyNotFoundError` on stray `.crypt` (no matching vault_items row)             | ✅ `test_crypto_erase_unknown_filename_raises_key_not_found` (exit 3) |
+| `doctor --report-ssd` emits a verdict                                          | ✅ `test_doctor_report_ssd_emits_verdict`                             |
+| `--help` advertises the new method                                             | ✅ `test_secure_delete_help_lists_crypto_erase_method`                |
+| Pure-core `secure_delete()` rejects CRYPTO_ERASE                               | ✅ `test_secure_delete_rejects_crypto_erase_at_pure_core_layer`       |
+| Ruff / Mypy strict / Bandit                                                    | ✅ all green                                                          |
