@@ -149,12 +149,12 @@ what is actually merged on `main`.
   as `Exception` (per CONVENTIONS.md §16, never catches `BaseException`).
 
 ### Known roadmap (not yet merged)
-- RSA-OAEP hybrid sharing (spec 003) — `share` / `accept` commands
-  + `--vault-user` keystore unlock + `Share` row + `file.share`
-  audit entry. Will reuse the `--vault-user` flow already shipped.
-- Cryptographic erase (spec 004 Phase B2) — depends on a finished
-  spec 003 because crypto-erase uses the wrapped DEK held in the
-  per-user keystore.
-- TUI (spec 000-tui), GUI + Tauri sidecar (spec 000-tauri-sidecar).
+- GUI Tauri 2 desktop shell + React 19 frontend (specs
+  `000-tauri-sidecar` + `000-tauri-frontend`). Python sidecar bound
+  to `127.0.0.1` via per-launch session token; spawned by the Rust
+  shell from a PyInstaller bundle declared in `tauri.conf.json
+  bundle.externalBin`. Frontend mirrors the CLI/TUI surface
+  (lock / dashboard / encrypt / decrypt / share / accept / history /
+  users / settings) with i18n FR + EN and WCAG 2.2 AA accessibility.
 
 [Unreleased]: https://github.com/sachamarlov/crypto-sidecar/compare/v0.0.0...HEAD
