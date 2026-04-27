@@ -57,6 +57,7 @@ __all__ = [
     "change_password",
     "create",
     "unlock",
+    "unlock_rsa_private",
 ]
 
 #: RSA key size used by :func:`create`. 4096 bits matches
@@ -153,6 +154,31 @@ def unlock(keystore: Keystore, password: str) -> bytes:
     master_key = _derive_master_key(password, keystore.salt, kdf_impl)
     try:
         return _unwrap(master_key, keystore.wrapped_vault_key, aad=_VAULT_KEY_AAD)
+    finally:
+        _zero(master_key)
+
+
+def unlock_rsa_private(keystore: Keystore, password: str) -> bytes:
+    """Re-derive the master key and return the unwrapped RSA private key DER.
+
+    Used by spec 003 (rsa-share) — the sender needs their RSA private to
+    sign the share token; the recipient needs theirs to unwrap the DEK.
+
+    Args:
+        keystore: The user's persisted keystore row.
+        password: User master password.
+
+    Returns:
+        The DER-encoded PKCS8 private key bytes (load via
+        :func:`guardiabox.core.rsa.load_private_key_der`).
+
+    Raises:
+        DecryptionError: Wrong password or tampered ``wrapped_rsa_private``.
+    """
+    kdf_impl = kdf_for_id(keystore.kdf_id, keystore.kdf_params)
+    master_key = _derive_master_key(password, keystore.salt, kdf_impl)
+    try:
+        return _unwrap(master_key, keystore.wrapped_rsa_private, aad=_RSA_PRIVATE_AAD)
     finally:
         _zero(master_key)
 
