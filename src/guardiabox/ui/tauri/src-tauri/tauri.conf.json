@@ -4,8 +4,8 @@
   "version": "0.1.0",
   "identifier": "io.guardiabox.app",
   "build": {
-    "beforeDevCommand": "pnpm dev",
-    "beforeBuildCommand": "pnpm build",
+    "beforeDevCommand": "pnpm --dir ../frontend dev",
+    "beforeBuildCommand": "pnpm --dir ../frontend build",
     "devUrl": "http://localhost:1420",
     "frontendDist": "../frontend/dist"
   },
