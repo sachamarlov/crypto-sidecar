@@ -36,8 +36,14 @@ from guardiabox.core.exceptions import (
     SymlinkEscapeError,
     UnknownKdfError,
     UnsupportedVersionError,
+    VaultUserNotFoundError,
     WeakKdfParametersError,
     WeakPasswordError,
+)
+from guardiabox.security.vault_admin import (
+    VaultAdminConfigAlreadyExistsError,
+    VaultAdminConfigInvalidError,
+    VaultAdminConfigMissingError,
 )
 
 __all__ = [
@@ -79,7 +85,7 @@ class ExitCode(IntEnum):
 ANTI_ORACLE_MESSAGE: str = "Échec du déchiffrement : mot de passe incorrect ou données altérées."
 
 
-def exit_for(exc: BaseException) -> NoReturn:  # noqa: PLR0912 -- wide dispatch by design
+def exit_for(exc: BaseException) -> NoReturn:  # noqa: PLR0912, PLR0915 -- wide dispatch by design
     """Emit the localised message for ``exc`` and exit with the mapped code.
 
     Never returns — always raises :class:`typer.Exit`. Pass-through for
@@ -121,6 +127,25 @@ def exit_for(exc: BaseException) -> NoReturn:  # noqa: PLR0912 -- wide dispatch 
     if isinstance(exc, MessageTooLargeError):
         typer.echo(f"Message trop volumineux : {exc}", err=True)
         raise typer.Exit(code=ExitCode.USAGE) from exc
+
+    if isinstance(exc, VaultAdminConfigMissingError):
+        typer.echo(f"Coffre non initialisé : {exc}", err=True)
+        raise typer.Exit(code=ExitCode.CONFIG_ERROR) from exc
+
+    if isinstance(exc, VaultAdminConfigAlreadyExistsError):
+        typer.echo(
+            f"Coffre déjà initialisé (retirer le fichier pour recommencer) : {exc}",
+            err=True,
+        )
+        raise typer.Exit(code=ExitCode.USAGE) from exc
+
+    if isinstance(exc, VaultAdminConfigInvalidError):
+        typer.echo(f"Configuration du coffre invalide : {exc}", err=True)
+        raise typer.Exit(code=ExitCode.CONFIG_ERROR) from exc
+
+    if isinstance(exc, VaultUserNotFoundError):
+        typer.echo(f"Utilisateur du coffre introuvable : {exc}", err=True)
+        raise typer.Exit(code=ExitCode.PATH_OR_FILE) from exc
 
     if isinstance(exc, FileNotFoundError):
         typer.echo(f"Fichier introuvable : {exc}", err=True)

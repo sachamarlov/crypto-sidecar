@@ -48,10 +48,14 @@ def _root(
 # defined above, hence the explicit E402 waiver.
 from guardiabox.ui.cli.commands import (  # noqa: E402
     decrypt as _decrypt,  # noqa: F401
+    doctor as _doctor,  # noqa: F401
     encrypt as _encrypt,  # noqa: F401
+    history as _history,  # noqa: F401
+    init as _init,  # noqa: F401
     inspect as _inspect,  # noqa: F401
     menu as _menu,  # noqa: F401
     secure_delete as _secure_delete,  # noqa: F401
+    user as _user,  # noqa: F401
 )
 
 if __name__ == "__main__":

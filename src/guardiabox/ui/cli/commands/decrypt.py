@@ -9,12 +9,13 @@ import typer
 
 from guardiabox.core.operations import decrypt_file, decrypt_message
 from guardiabox.fileio.safe_path import resolve_within
+from guardiabox.ui.cli._vault_audit import record_decrypt_event
 from guardiabox.ui.cli.io import ExitCode, exit_for, read_password
 from guardiabox.ui.cli.main import app
 
 
 @app.command("decrypt")
-def decrypt_command(
+def decrypt_command(  # noqa: PLR0917 -- Typer commands expose one param per flag
     path: Path = typer.Argument(
         ...,
         help="Chemin du fichier .crypt à déchiffrer.",
@@ -44,6 +45,18 @@ def decrypt_command(
         "-f",
         help="Écraser la destination si elle existe déjà.",
     ),
+    vault_user: str | None = typer.Option(
+        None,
+        "--vault-user",
+        help="Nom de l'utilisateur du coffre (active l'enregistrement audit).",
+        show_default=False,
+    ),
+    data_dir: Path | None = typer.Option(
+        None,
+        "--data-dir",
+        help="Répertoire du coffre (défaut : Settings.data_dir).",
+        show_default=False,
+    ),
 ) -> None:
     """Déchiffrer un fichier ``.crypt`` vers son contenu d'origine."""
     try:
@@ -59,6 +72,19 @@ def decrypt_command(
 
     if target is not None:
         typer.echo(f"Déchiffré : {target}")
+
+    if vault_user is not None:
+        try:
+            record_decrypt_event(
+                data_dir=data_dir,
+                password_stdin=password_stdin,
+                vault_username=vault_user,
+                container_path=path,
+                plaintext_path=target,
+            )
+            typer.echo(f"Audit     : opération enregistrée pour '{vault_user}'.")
+        except (Exception, KeyboardInterrupt) as exc:
+            exit_for(exc)
 
 
 def _dispatch(

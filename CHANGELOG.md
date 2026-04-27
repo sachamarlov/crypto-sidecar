@@ -39,6 +39,25 @@ what is actually merged on `main`.
   `change_password` (RSA-4096 + AES-256 vault key), audit
   hash-chain `append` / `verify` with byte-identical tamper
   detection over ciphertext columns.
+- **Spec 000-multi-user Phase C-2** — CLI surface for the multi-user
+  vault: `guardiabox init` bootstrap (creates `data_dir`, writes
+  `vault.admin.json`, runs Alembic, appends `system.startup` to
+  the audit chain), `guardiabox user create / list / show / delete`,
+  `guardiabox history --limit --user --action --format table|json`,
+  `guardiabox doctor [--verify-audit]` with `[OK] / [FAIL]` chain
+  reporting, opt-in `--vault-user <name>` flag on
+  `encrypt` / `decrypt` that records the action in the audit log
+  (and, for encrypt, persists a `vault_items` row).
+
+### Fixed
+- **Secure-delete random pass** — `_pattern_for_pass` previously
+  returned a single byte from `secrets.token_bytes(1)` to mark the
+  random pass; if that byte happened to be `\x00` or `\xff`
+  (≈ 0.78 %) the downstream check mistook the pass for a fixed-fill
+  zero/one pass and overwrote the file with that fixed byte instead
+  of fresh random bytes. Replaced the byte sentinel with a
+  `_PassKind` enum so the random branch is unambiguous. DoD
+  5220.22-M pass #3 is now guaranteed random.
 
 ### Security
 - KDF parameter floors AND ceilings enforced on both encode and decode
@@ -54,11 +73,12 @@ what is actually merged on `main`.
   as `Exception` (per CONVENTIONS.md §16, never catches `BaseException`).
 
 ### Known roadmap (not yet merged)
-- Multi-user vault **Phase C-2**: CLI surface (`user`, `history`,
-  `doctor --verify-audit`) + integration with encrypt/decrypt flows
-  (spec 000-multi-user tasks T-000mu.09 to T-000mu.13).
-- RSA-OAEP hybrid sharing (spec 003).
-- Cryptographic erase (spec 004 Phase B2).
+- RSA-OAEP hybrid sharing (spec 003) — `share` / `accept` commands
+  + `--vault-user` keystore unlock + `Share` row + `file.share`
+  audit entry. Will reuse the `--vault-user` flow already shipped.
+- Cryptographic erase (spec 004 Phase B2) — depends on a finished
+  spec 003 because crypto-erase uses the wrapped DEK held in the
+  per-user keystore.
 - TUI (spec 000-tui), GUI + Tauri sidecar (spec 000-tauri-sidecar).
 
 [Unreleased]: https://github.com/sachamarlov/crypto-sidecar/compare/v0.0.0...HEAD

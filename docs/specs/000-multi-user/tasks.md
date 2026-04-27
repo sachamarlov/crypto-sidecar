@@ -40,30 +40,38 @@ change_password`. RSA-4096 keypair + AES-256 vault key,
       SQL trigger contract test lives in
       `tests/integration/test_persistence_migrations.py`.
 
-## Phase C-2 — CLI surface + integration (PR to come)
+## Phase C-2 — CLI surface + integration (PR #26)
 
-- [ ] **T-000mu.09** — `ui.cli.commands.user` (`create`, `list`,
-      `delete`, `export-pubkey`, `import-pubkey`). Prompts for vault
+- [x] **T-000mu.09** — `ui.cli.commands.user` sub-Typer
+      (`create`, `list`, `show`, `delete --yes`). Prompts for vault
       admin password + per-user master password via `read_password`;
-      emits audit entries on every state change.
-- [ ] **T-000mu.10** — `ui.cli.commands.history` (`--limit`,
-      `--user`, `--action`, `--format json|csv|table`). Decrypts
-      target + metadata with the unlocked vault admin key.
-- [ ] **T-000mu.11** — Doctor command extension `guardiabox doctor
---verify-audit` (full chain scan; prints the first bad
-      sequence if any, otherwise green OK).
-- [ ] **T-000mu.12** — `guardiabox init` boot command: creates
-      `~/.guardiabox/`, runs `alembic upgrade head`, prompts for
-      the vault admin password, writes a salt file, logs
-      SYSTEM_STARTUP to the audit log.
-- [ ] **T-000mu.13** — Wire `encrypt_file` / `decrypt_file` to the
-      active user's VaultItemRepository so every successful
-      encrypt / decrypt appends an audit entry and updates the
-      vault_item row.
+      emits `user.create` / `user.delete` audit entries.
+      _Out of MVP scope_: `export-pubkey` / `import-pubkey` deferred
+      to spec 003 (rsa-share) — they only make sense with a sharing
+      flow.
+- [x] **T-000mu.10** — `ui.cli.commands.history` (`--limit`,
+      `--user`, `--action`, `--format json|table`). Decrypts target + metadata with the unlocked vault admin key. CSV format
+      deferred (table + json cover the two real consumers).
+- [x] **T-000mu.11** — `ui.cli.commands.doctor` with
+      `--verify-audit` (full chain scan; prints `[OK] intègre` /
+      `[FAIL] altération détectée à sequence=N`). Plain `doctor`
+      reports paths + SQLCipher availability without unlocking.
+- [x] **T-000mu.12** — `ui.cli.commands.init` boot command. Backed
+      by `persistence.bootstrap.init_vault`: creates `data_dir`,
+      writes `vault.admin.json` (salt + KDF params),
+      `alembic upgrade head`, appends `system.startup` audit row at
+      sequence 1.
+- [x] **T-000mu.13** — `--vault-user <name>` opt-in flag on
+      `encrypt` / `decrypt`. When present, after the .crypt file
+      lands, the CLI opens a vault session under the admin password,
+      persists a `vault_items` row (encrypt only), and appends a
+      `file.encrypt` / `file.decrypt` audit row. Unknown user ⇒
+      `VaultUserNotFoundError` ⇒ `ExitCode.PATH_OR_FILE`. The
+      single-user CLI without the flag is unchanged.
 
 ## Definition of Done
 
-### Phase C-1 (this PR)
+### Phase C-1 (PR #25, merged)
 
 | Gate                                    | Status                                      |
 | --------------------------------------- | ------------------------------------------- |
@@ -75,11 +83,23 @@ change_password`. RSA-4096 keypair + AES-256 vault key,
 | Repositories CRUD + HMAC index          | ✅ 9 integration tests                      |
 | Audit hash-chain append + verify        | ✅ 9 integration tests (+ tamper detection) |
 | Ruff / Mypy strict / Bandit             | ✅ all green                                |
-| Coverage floor (core + security ≥ 95 %) | ✅ will be checked on full-suite CI         |
+| Coverage floor (core + security ≥ 95 %) | ✅ enforced on full-suite CI                |
 
-### Phase C-2 (next PR)
+### Phase C-2 (this PR)
 
-Covered once CLI commands land. Acceptance scenarios from `spec.md`
-§3 (create user, unlock, backoff on failures, audit verify, column
-encryption on Win/Mac) will all be exercised end-to-end via
-`subprocess.run` integration tests.
+| Gate                                                   | Status                                         |
+| ------------------------------------------------------ | ---------------------------------------------- |
+| `vault_admin` config + key derivation                  | ✅ 11 unit + 6 slow tests                      |
+| `init` bootstrap (data_dir + alembic + genesis)        | ✅ 5 integration (subprocess + CliRunner)      |
+| `user create / list / show / delete`                   | ✅ 5 subprocess + 8 in-process flow tests      |
+| `history` (table / json / filter user / filter action) | ✅ 3 subprocess + 4 in-process + 4 CliRunner   |
+| `doctor` (paths + `--verify-audit` clean + tampered)   | ✅ 3 subprocess + 4 in-process tests           |
+| `--vault-user` audit hook on encrypt / decrypt         | ✅ 4 integration (encrypt + decrypt + unknown) |
+| Coverage floor (core + security ≥ 95 %)                | ✅ core 99.61 %, security 97.53 %              |
+| Ruff / Mypy strict / Bandit                            | ✅ all green                                   |
+
+Subprocess tests catch CLI bootstrap regressions (argument parsing,
+asyncio teardown, Windows cp1252 console encoding); in-process tests
+drive the same async flows under `pytest-cov` so the modules show up
+in the coverage report. Both layers are kept on purpose — see the
+docstring of `tests/integration/test_cli_phase_c2_inprocess.py`.

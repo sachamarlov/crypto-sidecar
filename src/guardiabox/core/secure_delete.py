@@ -16,7 +16,7 @@ can never route to a dispatch that would raise ``NotImplementedError``.
 
 from __future__ import annotations
 
-from enum import StrEnum
+from enum import Enum, StrEnum
 import os
 from pathlib import Path
 import secrets
@@ -33,6 +33,22 @@ __all__ = [
 #: is permitted but offers diminishing returns on modern drives.
 _DOD_PATTERN_ZERO: bytes = b"\x00"
 _DOD_PATTERN_ONE: bytes = b"\xff"
+
+
+class _PassKind(Enum):
+    r"""Discriminator returned by :func:`_pattern_for_pass`.
+
+    Using an enum (rather than a sentinel byte) avoids a subtle
+    non-determinism: if the random-pass byte happened to be ``\x00`` or
+    ``\xff``, the previous design would mistake it for the zero/one
+    pattern and overwrite the file with that fixed byte instead of fresh
+    random bytes (≈ 0.78 % per pass).
+    """
+
+    ZERO = "zero"
+    ONE = "one"
+    RANDOM = "random"
+
 
 DEFAULT_OVERWRITE_PASSES: int = 3
 
@@ -100,17 +116,18 @@ def secure_delete(
     resolved.unlink()
 
 
-def _pattern_for_pass(index: int) -> bytes:
-    """Return the one-byte fill pattern for pass ``index`` (0-based)."""
-    # Cycle through zero / one / random; pass ``n`` picks
-    # ``[zero, one, random][n % 3]``. Random passes freshly
-    # draw from ``secrets`` each call.
+def _pattern_for_pass(index: int) -> _PassKind:
+    """Return the fill kind for pass ``index`` (0-based).
+
+    The cycle is ``[zero, one, random]`` and repeats when ``index >= 3``
+    (so ``passes=4`` re-runs zero, ``passes=5`` re-runs one, etc.).
+    """
     mod = index % 3
     if mod == 0:
-        return _DOD_PATTERN_ZERO
+        return _PassKind.ZERO
     if mod == 1:
-        return _DOD_PATTERN_ONE
-    return secrets.token_bytes(1)
+        return _PassKind.ONE
+    return _PassKind.RANDOM
 
 
 def _overwrite_dod(path: Path, *, passes: int) -> None:
@@ -121,14 +138,14 @@ def _overwrite_dod(path: Path, *, passes: int) -> None:
     # ``fsync`` below really hit the disk.
     with path.open("r+b", buffering=0) as fp:
         for index in range(passes):
-            pattern = _pattern_for_pass(index)
-            _fill_in_place(fp, size=size, pattern=pattern)
+            kind = _pattern_for_pass(index)
+            _fill_in_place(fp, size=size, kind=kind)
             fp.flush()
             os.fsync(fp.fileno())
 
 
-def _fill_in_place(fp: IO[bytes], *, size: int, pattern: bytes) -> None:
-    r"""Write ``pattern`` (1 byte) over ``size`` bytes from offset 0.
+def _fill_in_place(fp: IO[bytes], *, size: int, kind: _PassKind) -> None:
+    r"""Write the pass ``kind`` over ``size`` bytes from offset 0.
 
     Zero (``\x00``) and one (``\xff``) passes reuse the same fixed byte
     via ``pattern * chunk_size``. Random passes pull a fresh block from
@@ -138,9 +155,15 @@ def _fill_in_place(fp: IO[bytes], *, size: int, pattern: bytes) -> None:
     """
     fp.seek(0)
     written = 0
-    random_pass = pattern not in {_DOD_PATTERN_ZERO, _DOD_PATTERN_ONE}
+    fixed: bytes | None
+    if kind is _PassKind.ZERO:
+        fixed = _DOD_PATTERN_ZERO
+    elif kind is _PassKind.ONE:
+        fixed = _DOD_PATTERN_ONE
+    else:
+        fixed = None
     while written < size:
         chunk_size = min(_OVERWRITE_CHUNK_BYTES, size - written)
-        chunk = secrets.token_bytes(chunk_size) if random_pass else pattern * chunk_size
+        chunk = secrets.token_bytes(chunk_size) if fixed is None else fixed * chunk_size
         fp.write(chunk)
         written += chunk_size
