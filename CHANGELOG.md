@@ -49,6 +49,32 @@ what is actually merged on `main`.
   `encrypt` / `decrypt` that records the action in the audit log
   (and, for encrypt, persists a `vault_items` row).
 
+### Added (Phase D — spec 003 RSA-share)
+- **Spec 003 — hybrid RSA-OAEP / AES-GCM share between local users.**
+  `core/rsa.py` exposes `RsaWrap.wrap/unwrap` (RSA-OAEP-SHA256) and
+  `RsaSign.sign/verify` (RSA-PSS-SHA256, max salt). `core/share_token.py`
+  ships the `.gbox-share` v1 binary container (magic `GBSH`, sender +
+  recipient UUIDs, content SHA-256, wrapped DEK, expires_at,
+  permission flags, embedded ciphertext, RSA-PSS suffix signature).
+  `core/operations.py` orchestrates `share_file` / `accept_share`:
+  decrypt source → fresh DEK → re-encrypt with AAD `b"guardiabox/share/v1"`
+  → wrap DEK for recipient → sign payload → write atomically. Accept
+  verifies signature **first** (anti-oracle, ADR-0015 applied to
+  share tokens), then recipient match, expiry, content hash, unwrap,
+  decrypt, atomic write.
+- CLI: `guardiabox share <source.crypt> --from <sender> --to <recipient>`
+  with public-key fingerprint display + `[y/N]` confirmation;
+  `guardiabox accept <token.gbox-share> --from <sender> --as <recipient>`
+  recovers the plaintext. Both append `file.share` /
+  `file.share_accept` to the hash-chained audit log.
+- Out-of-band fingerprint display defends against AD-2 (local DB
+  tampering of recipient's pubkey). `--yes` bypasses for scripts.
+- New exception `ShareExpiredError` (raised AFTER signature verify so
+  expiry status is not an oracle).
+- 53+ tests added: 25 RSA primitive unit + property tests, 17 share-token
+  format unit + property tests, 11 integration share/accept (round-trip,
+  tampering, recipient mismatch, expiry, anti-oracle), 5 CLI E2E.
+
 ### Fixed
 - **Secure-delete random pass** — `_pattern_for_pass` previously
   returned a single byte from `secrets.token_bytes(1)` to mark the

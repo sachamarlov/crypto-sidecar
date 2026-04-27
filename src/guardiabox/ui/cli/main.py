@@ -47,6 +47,7 @@ def _root(
 # importing them here wires them onto `app`. They must appear after `app` is
 # defined above, hence the explicit E402 waiver.
 from guardiabox.ui.cli.commands import (  # noqa: E402
+    accept as _accept,  # noqa: F401
     decrypt as _decrypt,  # noqa: F401
     doctor as _doctor,  # noqa: F401
     encrypt as _encrypt,  # noqa: F401
@@ -55,6 +56,7 @@ from guardiabox.ui.cli.commands import (  # noqa: E402
     inspect as _inspect,  # noqa: F401
     menu as _menu,  # noqa: F401
     secure_delete as _secure_delete,  # noqa: F401
+    share as _share,  # noqa: F401
     user as _user,  # noqa: F401
 )
 

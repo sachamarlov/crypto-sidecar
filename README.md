@@ -90,10 +90,16 @@ Trois interfaces utilisateur partagent le même cœur Python :
 - ✅ Flag opt-in `--vault-user <name>` sur `encrypt` / `decrypt` qui
   enregistre `file.encrypt` / `file.decrypt` dans le journal d'audit
   et persiste un `vault_items` row (T-000mu.13).
+- ✅ **Partage RSA hybride entre utilisateurs locaux** (spec 003) —
+  `guardiabox share` produit un jeton `.gbox-share` v1 (RSA-OAEP-SHA256
+  pour le wrap de la DEK, RSA-PSS-SHA256 pour la signature détachée) ;
+  `guardiabox accept` vérifie la signature **avant** tout déchiffrement
+  (anti-oracle ADR-0015), unwrap la DEK avec la clé privée du
+  destinataire, et restitue le clair. Empreinte SHA-256 de la clé
+  publique destinataire affichée à l'envoi (mitigation AD-2).
 
 ### Roadmap — à implémenter avant la soutenance
 
-- 🔨 Partage entre utilisateurs locaux (RSA-OAEP hybride) — spec 003.
 - 🔨 Cryptographic erase (effacement clé + unlink `.crypt`) — spec 004 Phase B2.
 - 🔨 TUI Textual — spec 000-tui.
 - 🔨 GUI Tauri + React — spec 000-tauri-sidecar + frontend.
@@ -175,6 +181,13 @@ uv run guardiabox doctor --verify-audit
 
 # Encrypt avec audit (--vault-user opt-in)
 uv run guardiabox encrypt rapport.pdf --vault-user alice
+
+# Partage RSA hybride entre deux utilisateurs locaux
+# (Alice partage rapport.pdf.crypt → Bob l'accepte)
+uv run guardiabox share rapport.pdf.crypt --from alice --to bob \
+    -o rapport.gbox-share --expires 7
+uv run guardiabox accept rapport.gbox-share --from alice --as bob \
+    -o rapport-recu.pdf
 
 # TUI
 uv run guardiabox-tui
