@@ -12,6 +12,60 @@ what is actually merged on `main`.
 
 ## [Unreleased]
 
+### Added (Phase I -- Build & distribution finale)
+
+- **`.github/workflows/release.yml`**: full cross-platform release
+  pipeline triggered on `release: published`. Six jobs:
+  `sidecar` (PyInstaller matrix Linux + Windows + macOS Intel +
+  macOS ARM), `tauri` (NSIS + MSI + DMG + DEB bundles consuming
+  the sidecar artefact), `smoke-installer` (silent NSIS install +
+  validation), `nfr-verification` (NFR-3 GUI + NFR-4 RSS + NFR-5
+  size, fails on regression), `sbom` (cyclonedx-bom for Python +
+  npm), `publish` (SHA-256 SUMS + assets uploaded to the GH
+  Release).
+- **ADR-0018**: Self-signed Authenticode dev cert as the academic
+  signing strategy, with documented limits (SmartScreen warning
+  on non-demo machines), CI signing step gated on the
+  `WINDOWS_CERT_PFX_BASE64` secret, demo machine prep
+  instructions, and explicit triggers for upgrading to OV/EV.
+- **`scripts/verify_nfr.py`**: reproducible NFR-3/4/5 measurement.
+  CLI cold start (5-run median), GUI cold start (3-run median via
+  the Tauri spawn -> sidecar handshake proxy), sidecar idle RSS
+  via psutil, sidecar + GUI binary size. Emits Markdown by
+  default or JSON for CI ingestion; non-zero exit on regression.
+- **`docs/NFR_VERIFICATION.md`**: cross-reference of every NFR-X
+  to its enforcing test, script, or CI gate. Reflects the
+  measured CLI cold-start gap (200 ms target unreachable from
+  `python -m guardiabox` dev path; tracked toward ADR-0012's
+  Nuitka migration).
+- **`docs/security-audits/2026-04-27-final-pre-release.md`** (Z-
+  Audit-Final): bandit clean, pip-audit clean, pnpm audit clean
+  after the dependency bump documented inline, build pipeline
+  STRIDE review.
+
+### Changed (Phase I)
+
+- **Frontend dev dependencies bumped** to clear five known
+  advisories (1 critical + 2 high + 2 moderate) flagged by
+  `pnpm audit`:
+  - `happy-dom` ^15.11.7 -> ^20.0.0 (VM Context Escape RCE +
+    fetch-credentials cross-origin + ESM compiler unsanitised
+    export names).
+  - `vite` ^6.0.3 -> ^7.0.0 (transitive `esbuild` >= 0.25 patches
+    the dev-server CORS bypass).
+  - `vitest` ^2.1.8 -> ^3.0.0 (compatible with happy-dom 20).
+  - `@vitest/{coverage-v8, ui}` ^2.1.8 -> ^3.0.0.
+  - **Storybook removed entirely** (last `uuid` moderate via
+    `@storybook/addon-actions`). The project never wrote a single
+    `*.stories.*` file in Phase H; carrying ~600 transitive deps
+    for unused tooling was a free vulnerability surface.
+- **`pnpm-lock.yaml` committed** (closes H-17). The frontend CI
+  pipeline can now run `pnpm install --frozen-lockfile` for
+  reproducibility, and `pnpm audit` becomes a CI gate.
+- **`vite.config.ts > test.exclude`** -- vitest now skips
+  `tests-e2e/`. Playwright specs were colliding with vitest's
+  default include glob and breaking `pnpm test`.
+
 ### Added (Phase H — spec 000-tauri-frontend partial)
 
 - **React 19 + Vite 6 desktop UI** running inside the Tauri 2
