@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 from enum import StrEnum
 from pathlib import Path
+from typing import Any
 from uuid import uuid4
 
 import typer
@@ -132,6 +133,13 @@ async def _create_flow(
 # ---------------------------------------------------------------------------
 
 
+class _OutputFormat(StrEnum):
+    """Render format for read commands. Aligned with `history --format`."""
+
+    TABLE = "table"
+    JSON = "json"
+
+
 @user_app.command("list")
 def user_list_command(
     data_dir: Path | None = typer.Option(None, "--data-dir", show_default=False),
@@ -140,6 +148,12 @@ def user_list_command(
         "--password-stdin",
         help="Lire le mot de passe administrateur depuis stdin.",
     ),
+    output: _OutputFormat = typer.Option(
+        _OutputFormat.TABLE,
+        "--format",
+        case_sensitive=False,
+        help="Format de sortie (table ou json).",
+    ),
 ) -> None:
     """Lister les utilisateurs locaux (déchiffre les noms côté client)."""
     try:
@@ -147,18 +161,24 @@ def user_list_command(
     except (Exception, KeyboardInterrupt) as exc:
         exit_for(exc)
 
+    if output is _OutputFormat.JSON:
+        import json
+
+        typer.echo(json.dumps(rows, indent=2, default=str))
+        return
+
     if not rows:
         typer.echo("(aucun utilisateur)")
         return
     for row in rows:
-        typer.echo(row)
+        typer.echo(f"{row['username']}  (id={row['id']}, créé le {row['created_at']})")
 
 
 async def _list_flow(
     *,
     data_dir: Path | None,
     password_stdin: bool,
-) -> list[str]:
+) -> list[dict[str, Any]]:
     async with open_vault_session(data_dir, password_stdin=password_stdin) as (
         vault,
         session,
@@ -167,7 +187,12 @@ async def _list_flow(
         repo = UserRepository(session, vault.admin_key)
         users = await repo.list_all()
         return [
-            f"{repo.decrypt_username(u)}  (id={u.id}, créé le {u.created_at.isoformat()})"
+            {
+                "id": u.id,
+                "username": repo.decrypt_username(u),
+                "created_at": u.created_at.isoformat(),
+                "kdf_id": u.kdf_id,
+            }
             for u in users
         ]
 
@@ -258,6 +283,12 @@ def user_show_command(
         "--password-stdin",
         help="Lire le mot de passe administrateur depuis stdin.",
     ),
+    output: _OutputFormat = typer.Option(
+        _OutputFormat.TABLE,
+        "--format",
+        case_sensitive=False,
+        help="Format de sortie (table ou json).",
+    ),
 ) -> None:
     """Afficher les métadonnées publiques d'un utilisateur (pas de secret)."""
     try:
@@ -270,8 +301,19 @@ def user_show_command(
     if data is None:
         typer.echo(f"Utilisateur '{username}' introuvable.", err=True)
         raise typer.Exit(code=ExitCode.PATH_OR_FILE)
-    for line in data:
-        typer.echo(line)
+
+    if output is _OutputFormat.JSON:
+        import json
+
+        typer.echo(json.dumps(data, indent=2, default=str))
+        return
+
+    typer.echo(f"Utilisateur    : {data['username']}")
+    typer.echo(f"ID             : {data['id']}")
+    typer.echo(f"Créé le        : {data['created_at']}")
+    typer.echo(f"Dernier unlock : {data['last_unlock_at']}")
+    typer.echo(f"Échecs unlock  : {data['failed_unlock_count']}")
+    typer.echo(f"KDF id         : 0x{data['kdf_id']:02x}")
 
 
 async def _show_flow(
@@ -279,7 +321,7 @@ async def _show_flow(
     data_dir: Path | None,
     username: str,
     password_stdin: bool,
-) -> list[str] | None:
+) -> dict[str, Any] | None:
     async with open_vault_session(data_dir, password_stdin=password_stdin) as (
         vault,
         session,
@@ -292,11 +334,11 @@ async def _show_flow(
         last_unlock = (
             target.last_unlock_at.isoformat() if target.last_unlock_at is not None else "jamais"
         )
-        return [
-            f"Utilisateur    : {repo.decrypt_username(target)}",
-            f"ID             : {target.id}",
-            f"Créé le        : {target.created_at.isoformat()}",
-            f"Dernier unlock : {last_unlock}",
-            f"Échecs unlock  : {target.failed_unlock_count}",
-            f"KDF id         : 0x{target.kdf_id:02x}",
-        ]
+        return {
+            "username": repo.decrypt_username(target),
+            "id": target.id,
+            "created_at": target.created_at.isoformat(),
+            "last_unlock_at": last_unlock,
+            "failed_unlock_count": target.failed_unlock_count,
+            "kdf_id": target.kdf_id,
+        }

@@ -49,6 +49,21 @@ what is actually merged on `main`.
   `encrypt` / `decrypt` that records the action in the audit log
   (and, for encrypt, persists a `vault_items` row).
 
+### Added (Phase E — spec 000-cli residuals)
+- **`guardiabox config`** sub-Typer (`list` / `get`). Flattens the
+  pydantic-settings tree into dotted keys (e.g.
+  `crypto.pbkdf2_iterations`). `set` is deferred post-MVP — users
+  override via `GUARDIABOX_<KEY>` env vars or `.env`.
+- **Global `--quiet` / `--verbose` flags** on the root callback.
+  `--verbose` → structlog DEBUG ; `--quiet` → ERROR + `GUARDIABOX_QUIET=1`
+  env var (consumable by future success-line suppression). Mutually
+  exclusive with `--verbose`.
+- **`--format json|table`** added to `user list`, `user show`, and
+  `doctor` (already shipped on `history` in Phase C). All four read
+  commands now emit either a Rich-style human table or a parseable
+  JSON document — useful for CI smokes, scripts, and the upcoming
+  Tauri sidecar surface.
+
 ### Added (Phase B2 — spec 004 crypto-erase)
 - **`SecureDeleteMethod.CRYPTO_ERASE`** + CLI `secure-delete --method
   crypto-erase --vault-user <name>` — combines the DoD overwrite with a

@@ -9,7 +9,10 @@ safe to wire into a periodic cron / CI smoke.
 from __future__ import annotations
 
 import asyncio
+from enum import StrEnum
+import json
 from pathlib import Path
+from typing import Any
 
 import typer
 
@@ -20,6 +23,13 @@ from guardiabox.security.audit import verify
 from guardiabox.ui.cli._session import open_vault_session, resolve_vault_paths
 from guardiabox.ui.cli.io import ExitCode, exit_for
 from guardiabox.ui.cli.main import app
+
+
+class _OutputFormat(StrEnum):
+    """Render format. Aligned with `history --format` and `user list --format`."""
+
+    TABLE = "table"
+    JSON = "json"
 
 
 @app.command("doctor")
@@ -34,6 +44,12 @@ def doctor_command(
         "--report-ssd",
         help="Probe the data_dir's storage type (SSD / HDD / unknown) per spec 004.",
     ),
+    output: _OutputFormat = typer.Option(
+        _OutputFormat.TABLE,
+        "--format",
+        case_sensitive=False,
+        help="Format de sortie (table ou json).",
+    ),
     data_dir: Path | None = typer.Option(None, "--data-dir", show_default=False),
     password_stdin: bool = typer.Option(
         False,
@@ -43,28 +59,45 @@ def doctor_command(
 ) -> None:
     """Afficher l'état du coffre et, avec --verify-audit, vérifier la chaîne."""
     paths = resolve_vault_paths(data_dir)
-    typer.echo(f"Répertoire de données : {paths.data_dir}")
-    typer.echo(
-        f"Base de données       : {paths.db} ({'présent' if paths.db.is_file() else 'absent'})"
-    )
-    typer.echo(
-        f"Configuration admin   : {paths.admin_config} "
-        f"({'présent' if paths.admin_config.is_file() else 'absent'})"
-    )
-    typer.echo(f"SQLCipher disponible  : {'oui' if sqlcipher_available() else 'non'}")
+
+    facts: dict[str, Any] = {
+        "data_dir": str(paths.data_dir),
+        "db_present": paths.db.is_file(),
+        "db_path": str(paths.db),
+        "admin_config_present": paths.admin_config.is_file(),
+        "admin_config_path": str(paths.admin_config),
+        "sqlcipher_available": sqlcipher_available(),
+    }
 
     if report_ssd:
-        # Probe whichever directory exists -- the data_dir parent works on
-        # a freshly-cloned host where the vault is not yet initialised.
         probe_target = paths.data_dir if paths.data_dir.exists() else paths.data_dir.parent
         verdict = is_ssd(probe_target)
+        facts["is_ssd"] = verdict
         if verdict is True:
-            label = "SSD (mémoire flash) -- crypto-erase recommandé"
+            facts["storage_label"] = "SSD (mémoire flash) -- crypto-erase recommandé"
         elif verdict is False:
-            label = "HDD (rotational) -- overwrite DoD efficace"
+            facts["storage_label"] = "HDD (rotational) -- overwrite DoD efficace"
         else:
-            label = "indéterminé -- traité comme flash par prudence (NIST SP 800-88r2)"
-        typer.echo(f"Type de support       : {label}")
+            facts["storage_label"] = (
+                "indéterminé -- traité comme flash par prudence (NIST SP 800-88r2)"
+            )
+
+    if output is _OutputFormat.JSON and not verify_audit:
+        typer.echo(json.dumps(facts, indent=2, default=str))
+        return
+
+    typer.echo(f"Répertoire de données : {facts['data_dir']}")
+    typer.echo(
+        f"Base de données       : {facts['db_path']} "
+        f"({'présent' if facts['db_present'] else 'absent'})"
+    )
+    typer.echo(
+        f"Configuration admin   : {facts['admin_config_path']} "
+        f"({'présent' if facts['admin_config_present'] else 'absent'})"
+    )
+    typer.echo(f"SQLCipher disponible  : {'oui' if facts['sqlcipher_available'] else 'non'}")
+    if report_ssd:
+        typer.echo(f"Type de support       : {facts['storage_label']}")
 
     if not verify_audit:
         return
