@@ -25,6 +25,7 @@ from guardiabox import __version__
 from guardiabox.config import Settings, get_settings
 from guardiabox.logging import get_logger
 from guardiabox.ui.tauri.sidecar.api.middleware import TokenAuthMiddleware
+from guardiabox.ui.tauri.sidecar.api.v1.audit import build_audit_router
 from guardiabox.ui.tauri.sidecar.api.v1.decrypt import build_decrypt_router
 from guardiabox.ui.tauri.sidecar.api.v1.encrypt import build_encrypt_router
 from guardiabox.ui.tauri.sidecar.api.v1.health import build_health_router
@@ -125,4 +126,6 @@ def create_app(
     # Users CRUD (G-06). Requires both the launch token AND a vault
     # session (X-GuardiaBox-Session header).
     app.include_router(build_users_router())
+    # Audit history + verify chain (G-07).
+    app.include_router(build_audit_router())
     return app
