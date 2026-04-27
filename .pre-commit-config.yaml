@@ -101,7 +101,8 @@ repos:
               .*\.lock|
               package-lock\.json|
               (.*/)?pnpm-lock\.yaml|
-              tests/unit/test_kat_vectors\.py
+              tests/unit/test_kat_vectors\.py|
+              src/guardiabox/ui/tauri/frontend/src/i18n/.*\.json
           )$
 
   # ------------------------------------------------------------------

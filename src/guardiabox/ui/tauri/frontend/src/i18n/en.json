@@ -1,0 +1,151 @@
+{
+  "translation": {
+    "app": {
+      "name": "GuardiaBox",
+      "tagline": "Local secure vault. Encrypt, store, and share files without ever trusting a remote server."
+    },
+    "common": {
+      "ok": "OK",
+      "cancel": "Cancel",
+      "confirm": "Confirm",
+      "save": "Save",
+      "delete": "Delete",
+      "edit": "Edit",
+      "loading": "Loading…",
+      "error": "Error",
+      "success": "Success",
+      "close": "Close",
+      "back": "Back",
+      "yes": "Yes",
+      "no": "No",
+      "language": "Language",
+      "theme": "Theme"
+    },
+    "password": {
+      "placeholder": "Password",
+      "aria_label": "Password input (masked)",
+      "hint_empty": "Enter a password",
+      "confirm_placeholder": "Confirm password",
+      "min_length": "Minimum length: 12 characters"
+    },
+    "lock": {
+      "title": "Vault locked",
+      "subtitle": "Enter the administrator password to unlock the vault.",
+      "submit": "Unlock",
+      "init_button": "Initialise a new vault",
+      "init_title": "Initialise the vault",
+      "init_subtitle": "Pick a strong administrator password. It cannot be recovered.",
+      "init_kdf_label": "Key derivation function",
+      "init_submit": "Create vault",
+      "auth_failure_constant": "Wrong administrator password or vault not initialised.",
+      "init_success": "Vault initialised. You can now unlock it."
+    },
+    "dashboard": {
+      "title": "Dashboard",
+      "users_section": "Local users",
+      "actions": {
+        "encrypt": "Encrypt a file",
+        "decrypt": "Decrypt a file",
+        "share": "Share a .crypt",
+        "accept": "Import a .gbox-share",
+        "history": "Audit log",
+        "users": "Manage users",
+        "settings": "Settings",
+        "lock": "Lock now"
+      },
+      "empty": {
+        "title": "No user",
+        "subtitle": "Create your first user to get started."
+      }
+    },
+    "encrypt": {
+      "title": "Encrypt a file",
+      "path_label": "File path",
+      "path_pick": "Pick…",
+      "kdf_label": "KDF algorithm",
+      "kdf_pbkdf2": "PBKDF2-HMAC-SHA256 (≥ 600 000 iterations, FIPS-140 compliant)",
+      "kdf_argon2id": "Argon2id (m=64 MiB, t=3, p=1, OWASP 2026 recommendation)",
+      "submit": "Encrypt",
+      "success": "File encrypted: {{path}}",
+      "error_path_required": "File path is required."
+    },
+    "decrypt": {
+      "title": "Decrypt a file",
+      "path_label": ".crypt file path",
+      "path_pick": "Pick…",
+      "submit": "Decrypt",
+      "success": "File decrypted: {{path}}",
+      "anti_oracle_failure": "Decryption failed. Wrong password or tampered container.",
+      "info_anti_oracle": "The error message is intentionally uniform to prevent any decryption oracle."
+    },
+    "share": {
+      "title": "Share a .crypt",
+      "preview_step": "Step 1 — Fingerprint check",
+      "commit_step": "Step 2 — Confirmation",
+      "source_label": ".crypt file to share",
+      "sender_label": "Sender",
+      "recipient_label": "Recipient",
+      "expires_label": "Expiry (days, 0 = never)",
+      "force_label": "Overwrite output file if it exists",
+      "preview_button": "Check fingerprint",
+      "commit_button": "Confirm and create share",
+      "fingerprint_warning": "Verify this fingerprint out-of-band (phone, in person) with the recipient before continuing. A different fingerprint indicates a local user-database compromise.",
+      "success": ".gbox-share token created: {{path}}"
+    },
+    "accept": {
+      "title": "Import a .gbox-share",
+      "source_label": ".gbox-share token path",
+      "sender_label": "Sender",
+      "submit": "Import and decrypt",
+      "success": "File received: {{path}}",
+      "anti_oracle_failure": "Share verification failed.",
+      "expired": "The share has expired."
+    },
+    "history": {
+      "title": "Audit log",
+      "filter_actor": "Filter by actor",
+      "filter_action": "Filter by action",
+      "filter_limit": "Limit",
+      "verify_chain": "Verify chain integrity",
+      "verify_ok": "Audit chain intact — {{count}} entries verified.",
+      "verify_fail": "Tampering detected at sequence {{sequence}}.",
+      "columns": {
+        "sequence": "#",
+        "timestamp": "Timestamp",
+        "actor": "Actor",
+        "action": "Action",
+        "target": "Target"
+      },
+      "empty": "No audit entries match the selected filters."
+    },
+    "users": {
+      "title": "Users",
+      "create_title": "Create a user",
+      "username_label": "Username",
+      "create_submit": "Create",
+      "delete_confirm_title": "Delete this user?",
+      "delete_confirm_subtitle": "This action removes the RSA keystore and the vault key. Already-shared .gbox-share tokens to this recipient become unreadable.",
+      "delete_button": "Delete permanently",
+      "delete_success": "User deleted.",
+      "create_success": "User {{username}} created.",
+      "duplicate_username": "This username is already taken."
+    },
+    "settings": {
+      "title": "Settings",
+      "config_section": "Configuration",
+      "config_set_hint": "To change these values, use GUARDIABOX_… environment variables or a .env file (writing them back is deferred post-MVP).",
+      "diagnostic_section": "Diagnostics",
+      "verify_audit": "Verify audit chain",
+      "report_ssd": "Detect SSD/HDD",
+      "version_section": "Version",
+      "sqlcipher_label": "SQLCipher available",
+      "data_dir_label": "Data directory"
+    },
+    "errors": {
+      "session_required": "Invalid session. Please reconnect to the vault.",
+      "rate_limited": "Too many attempts. Wait before retrying.",
+      "network": "Network error. Is the local sidecar running?",
+      "weak_password": "Password too weak (minimum 12 characters + zxcvbn score ≥ 3)."
+    }
+  }
+}

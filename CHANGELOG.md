@@ -12,6 +12,63 @@ what is actually merged on `main`.
 
 ## [Unreleased]
 
+### Added (Phase H — spec 000-tauri-frontend partial)
+
+- **React 19 + Vite 6 desktop UI** running inside the Tauri 2
+  WebView2 window. Mirrors the CLI / TUI surface (lock /
+  dashboard / encrypt / decrypt / share / accept / history /
+  users / settings) over the Phase G sidecar HTTP API.
+- **Typed API client** (`src/api/`): hand-written TypeScript
+  views matching every Phase G Pydantic schema, a thin fetch
+  wrapper auto-injecting `X-GuardiaBox-Token` (via the Tauri
+  `get_sidecar_connection` command) and `X-GuardiaBox-Session`
+  (via the Jotai `sessionIdAtom`), and TanStack Query hooks
+  for every endpoint.
+- **State management split** (ADR-0017 candidate): Jotai atoms
+  for fine-grained lock state (sessionId, expiresAtMs,
+  isUnlocked, activeUserId), Zustand for UI globals (language
+  with localStorage persistence + i18next bridge), TanStack
+  Query for server cache.
+- **AuthGuard + auto-lock**: `useAutoLock` ticks at 1 Hz against
+  `expiresAtMsAtom`; on expiry it best-effort calls
+  `/api/v1/vault/lock`, drops the local atoms, and the
+  AuthGuard reroutes to `/lock`.
+- **9 file-based TanStack Router routes**: `/`, `/lock`,
+  `/dashboard`, `/dashboard/{encrypt, decrypt, share, accept,
+  history, users, settings}`. The `/lock` flow handles both
+  unlock and init (when the vault is fresh).
+- **Anti-oracle preservation** (ADR-0015 propagated to the UI):
+  `/decrypt` 422 collapses to a single i18n string
+  (`decrypt.anti_oracle_failure`); `/accept` 422 with detail
+  `share verification failed` collapses likewise. The
+  `share expired` branch is allowed to differ (raised post-
+  signature-verify, no leak).
+- **2-step share flow**: form -> fingerprint warning -> commit.
+  The recipient picker filters out the active user; the warning
+  forces the user to verify out-of-band before confirming.
+- **i18n FR + EN** (NFR-6): 100+ keys across app/common/
+  password/lock/dashboard/encrypt/decrypt/share/accept/history/
+  users/settings/errors namespaces. `i18next-browser-language-
+  detector` reads `localStorage.guardiabox.lang` then
+  `navigator.language`; fallback `fr`.
+- **Shared `<PasswordField>`** with no-echo Input + 20-char
+  zxcvbn-style strength bar (client-side hint;
+  `assert_strong` on the server is the authoritative gate).
+- **Vitest scaffolding**: 16 unit tests covering the password
+  evaluator, the lock atoms, and the PasswordField component.
+- **WCAG 2.2 AA polish** (NFR-7): focus-visible rings on every
+  interactive element, `aria-live="polite"` on the strength bar,
+  `scope="col"` on the audit table, `aria-label` on icon
+  buttons, `prefers-reduced-motion` killed at the
+  `index.css` layer.
+
+Follow-ups tracked but **not in this section**: axe-playwright
+WCAG audit (H-13) requires browser binaries; Playwright E2E
+flows (H-14) require a live sidecar; per-route slowapi
+decorators (G-11.b); `pnpm-lock.yaml` commit + CI activation
+(H-17) gated on a green local `pnpm install + lint + typecheck
++ test`.
+
 ### Added (Phase G — spec 000-tauri-sidecar partial)
 
 - **FastAPI sidecar bound 127.0.0.1 only** (`SidecarSettings.host`

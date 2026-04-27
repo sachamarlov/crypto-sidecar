@@ -1,0 +1,151 @@
+{
+  "translation": {
+    "app": {
+      "name": "GuardiaBox",
+      "tagline": "Coffre-fort numérique local. Chiffrez, stockez et partagez vos fichiers sans jamais faire confiance à un serveur distant."
+    },
+    "common": {
+      "ok": "OK",
+      "cancel": "Annuler",
+      "confirm": "Confirmer",
+      "save": "Enregistrer",
+      "delete": "Supprimer",
+      "edit": "Modifier",
+      "loading": "Chargement…",
+      "error": "Erreur",
+      "success": "Succès",
+      "close": "Fermer",
+      "back": "Retour",
+      "yes": "Oui",
+      "no": "Non",
+      "language": "Langue",
+      "theme": "Thème"
+    },
+    "password": {
+      "placeholder": "Mot de passe",
+      "aria_label": "Champ de mot de passe (saisie masquée)",
+      "hint_empty": "Saisir un mot de passe",
+      "confirm_placeholder": "Confirmer le mot de passe",
+      "min_length": "Longueur minimale : 12 caractères"
+    },
+    "lock": {
+      "title": "Coffre verrouillé",
+      "subtitle": "Saisissez le mot de passe administrateur pour déverrouiller le coffre.",
+      "submit": "Déverrouiller",
+      "init_button": "Initialiser un nouveau coffre",
+      "init_title": "Initialiser le coffre",
+      "init_subtitle": "Choisissez un mot de passe administrateur fort. Il ne peut pas être récupéré.",
+      "init_kdf_label": "Fonction de dérivation",
+      "init_submit": "Créer le coffre",
+      "auth_failure_constant": "Mot de passe administrateur incorrect ou coffre non initialisé.",
+      "init_success": "Coffre initialisé. Vous pouvez maintenant le déverrouiller."
+    },
+    "dashboard": {
+      "title": "Tableau de bord",
+      "users_section": "Utilisateurs locaux",
+      "actions": {
+        "encrypt": "Chiffrer un fichier",
+        "decrypt": "Déchiffrer un fichier",
+        "share": "Partager un .crypt",
+        "accept": "Importer un .gbox-share",
+        "history": "Journal d'audit",
+        "users": "Gestion des utilisateurs",
+        "settings": "Paramètres",
+        "lock": "Verrouiller maintenant"
+      },
+      "empty": {
+        "title": "Aucun utilisateur",
+        "subtitle": "Créez votre premier utilisateur pour commencer."
+      }
+    },
+    "encrypt": {
+      "title": "Chiffrer un fichier",
+      "path_label": "Chemin du fichier",
+      "path_pick": "Choisir…",
+      "kdf_label": "Algorithme KDF",
+      "kdf_pbkdf2": "PBKDF2-HMAC-SHA256 (≥ 600 000 itérations, conforme FIPS-140)",
+      "kdf_argon2id": "Argon2id (m=64 MiB, t=3, p=1, recommandation OWASP 2026)",
+      "submit": "Chiffrer",
+      "success": "Fichier chiffré : {{path}}",
+      "error_path_required": "Le chemin du fichier est obligatoire."
+    },
+    "decrypt": {
+      "title": "Déchiffrer un fichier",
+      "path_label": "Chemin du fichier .crypt",
+      "path_pick": "Choisir…",
+      "submit": "Déchiffrer",
+      "success": "Fichier déchiffré : {{path}}",
+      "anti_oracle_failure": "Échec du déchiffrement. Mot de passe incorrect ou conteneur altéré.",
+      "info_anti_oracle": "Le message d'erreur est volontairement uniforme pour empêcher tout oracle de déchiffrement."
+    },
+    "share": {
+      "title": "Partager un .crypt",
+      "preview_step": "Étape 1 — Vérification de l'empreinte",
+      "commit_step": "Étape 2 — Confirmation",
+      "source_label": "Fichier .crypt à partager",
+      "sender_label": "Émetteur",
+      "recipient_label": "Destinataire",
+      "expires_label": "Expiration (jours, 0 = jamais)",
+      "force_label": "Écraser le fichier de sortie s'il existe",
+      "preview_button": "Vérifier l'empreinte",
+      "commit_button": "Confirmer et créer le partage",
+      "fingerprint_warning": "Vérifiez cette empreinte hors-bande (téléphone, en personne) avec le destinataire avant de poursuivre. Une empreinte différente indique un compromis local de la base utilisateurs.",
+      "success": "Jeton .gbox-share créé : {{path}}"
+    },
+    "accept": {
+      "title": "Importer un .gbox-share",
+      "source_label": "Chemin du jeton .gbox-share",
+      "sender_label": "Émetteur",
+      "submit": "Importer et déchiffrer",
+      "success": "Fichier reçu : {{path}}",
+      "anti_oracle_failure": "Échec de la vérification du partage.",
+      "expired": "Le partage a expiré."
+    },
+    "history": {
+      "title": "Journal d'audit",
+      "filter_actor": "Filtrer par utilisateur",
+      "filter_action": "Filtrer par action",
+      "filter_limit": "Limite",
+      "verify_chain": "Vérifier l'intégrité de la chaîne",
+      "verify_ok": "Chaîne d'audit intègre — {{count}} entrées vérifiées.",
+      "verify_fail": "Altération détectée à la séquence {{sequence}}.",
+      "columns": {
+        "sequence": "#",
+        "timestamp": "Horodatage",
+        "actor": "Auteur",
+        "action": "Action",
+        "target": "Cible"
+      },
+      "empty": "Aucune entrée d'audit pour les filtres sélectionnés."
+    },
+    "users": {
+      "title": "Utilisateurs",
+      "create_title": "Créer un utilisateur",
+      "username_label": "Nom d'utilisateur",
+      "create_submit": "Créer",
+      "delete_confirm_title": "Supprimer cet utilisateur ?",
+      "delete_confirm_subtitle": "Cette action supprime le keystore RSA et la clé de coffre. Les jetons .gbox-share déjà partagés à ce destinataire deviennent illisibles.",
+      "delete_button": "Supprimer définitivement",
+      "delete_success": "Utilisateur supprimé.",
+      "create_success": "Utilisateur {{username}} créé.",
+      "duplicate_username": "Ce nom d'utilisateur est déjà pris."
+    },
+    "settings": {
+      "title": "Paramètres",
+      "config_section": "Configuration",
+      "config_set_hint": "Pour modifier ces valeurs, utilisez les variables d'environnement GUARDIABOX_… ou un fichier .env (l'écriture en mémoire persistante est différée post-MVP).",
+      "diagnostic_section": "Diagnostic",
+      "verify_audit": "Vérifier la chaîne d'audit",
+      "report_ssd": "Détecter SSD/HDD",
+      "version_section": "Version",
+      "sqlcipher_label": "SQLCipher disponible",
+      "data_dir_label": "Répertoire de données"
+    },
+    "errors": {
+      "session_required": "Session non valide. Reconnectez-vous au coffre.",
+      "rate_limited": "Trop de tentatives. Patientez avant de réessayer.",
+      "network": "Erreur réseau. Le sidecar local est-il démarré ?",
+      "weak_password": "Mot de passe trop faible (minimum 12 caractères + score zxcvbn ≥ 3)."
+    }
+  }
+}
