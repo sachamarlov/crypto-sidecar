@@ -33,6 +33,7 @@ from guardiabox.ui.tauri.sidecar.api.v1.health import build_health_router
 from guardiabox.ui.tauri.sidecar.api.v1.init import build_init_router
 from guardiabox.ui.tauri.sidecar.api.v1.inspect import build_inspect_router
 from guardiabox.ui.tauri.sidecar.api.v1.secure_delete import build_secure_delete_router
+from guardiabox.ui.tauri.sidecar.api.v1.share import build_share_router
 from guardiabox.ui.tauri.sidecar.api.v1.users import build_users_router
 from guardiabox.ui.tauri.sidecar.api.v1.vault import build_vault_router
 from guardiabox.ui.tauri.sidecar.state import SessionStore
@@ -137,4 +138,7 @@ def create_app(
     app.include_router(build_init_router())
     app.include_router(build_doctor_router())
     app.include_router(build_secure_delete_router())
+    # Share / accept (G-05). Hybrid RSA-OAEP wrap + RSA-PSS sign;
+    # anti-oracle preserved on accept failures (422 constant body).
+    app.include_router(build_share_router())
     return app
