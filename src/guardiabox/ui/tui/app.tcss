@@ -1,0 +1,83 @@
+/* GuardiaBox TUI — base theme.
+ * Kept intentionally minimal: Textual's default dark theme already
+ * looks modern, we only add accent colors for the action bar and the
+ * toast variants.
+ */
+
+Screen {
+    background: $surface;
+}
+
+#dashboard-actions {
+    layout: horizontal;
+    height: 3;
+    padding: 0 1;
+    background: $boost;
+    border-top: tall $accent;
+}
+
+#dashboard-actions > Button {
+    margin: 0 1;
+    min-width: 14;
+}
+
+.toast {
+    dock: top;
+    layer: notification;
+    margin: 1 2;
+    padding: 1 2;
+    background: $boost;
+    border: thick $accent;
+    width: auto;
+}
+
+.toast-success {
+    border: thick $success;
+}
+
+.toast-error {
+    border: thick $error;
+}
+
+.toast-warning {
+    border: thick $warning;
+}
+
+ModalScreen > #modal-frame {
+    align: center middle;
+    background: $surface;
+    border: thick $primary;
+    padding: 2 4;
+    width: 80;
+    height: auto;
+    max-height: 30;
+}
+
+ModalScreen #modal-title {
+    text-style: bold;
+    color: $accent;
+    padding-bottom: 1;
+}
+
+ModalScreen Input {
+    margin-bottom: 1;
+}
+
+ModalScreen #button-row {
+    layout: horizontal;
+    height: 3;
+    align-horizontal: right;
+    margin-top: 1;
+}
+
+ModalScreen #button-row > Button {
+    margin-left: 1;
+}
+
+#zxcvbn-strength {
+    margin-bottom: 1;
+}
+
+#history-table {
+    height: 1fr;
+}
