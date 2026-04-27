@@ -67,9 +67,8 @@ pub async fn start(app: AppHandle) -> Result<()> {
     .context("error reading sidecar stdout")?
     .ok_or_else(|| anyhow!("sidecar exited before sending handshake"))?;
 
-    let conn = parse_handshake(&first_line).with_context(|| {
-        format!("bad sidecar handshake: {first_line:?}")
-    })?;
+    let conn = parse_handshake(&first_line)
+        .with_context(|| format!("bad sidecar handshake: {first_line:?}"))?;
     info!(port = conn.port, "sidecar handshake parsed");
 
     // Persist the connection in app state so the renderer can fetch it.
@@ -89,7 +88,11 @@ pub async fn start(app: AppHandle) -> Result<()> {
 
 fn resolve_binary_path(app: &AppHandle) -> Result<std::path::PathBuf> {
     let triple = current_target_triple();
-    let ext = if cfg!(target_os = "windows") { ".exe" } else { "" };
+    let ext = if cfg!(target_os = "windows") {
+        ".exe"
+    } else {
+        ""
+    };
     let filename = format!("{SIDECAR_BIN_PREFIX}-{triple}{ext}");
 
     // Tauri places externalBin entries next to the shell at runtime;
