@@ -98,9 +98,17 @@ Trois interfaces utilisateur partagent le même cœur Python :
   destinataire, et restitue le clair. Empreinte SHA-256 de la clé
   publique destinataire affichée à l'envoi (mitigation AD-2).
 
+- ✅ **Crypto-erase metadata + ciphertext overwrite** (spec 004 Phase B2) —
+  `secure-delete --method crypto-erase --vault-user <nom>` combine
+  l'écrasement DoD du `.crypt` avec la suppression de la ligne
+  `vault_items` du coffre et l'inscription d'un `file.secure_delete`
+  dans le journal d'audit. Limitation honnête : pas de DEK persistée
+  par fichier dans l'archi actuelle, donc l'effacement strict NIST
+  SP 800-88 reste roadmapé post-MVP via un format `.crypt` v2.
+- ✅ Diagnostic `doctor --report-ssd` (probe SSD / HDD / inconnu).
+
 ### Roadmap — à implémenter avant la soutenance
 
-- 🔨 Cryptographic erase (effacement clé + unlink `.crypt`) — spec 004 Phase B2.
 - 🔨 TUI Textual — spec 000-tui.
 - 🔨 GUI Tauri + React — spec 000-tauri-sidecar + frontend.
 
@@ -166,6 +174,10 @@ uv run guardiabox inspect rapport.pdf.crypt
 
 # Supprimer de manière sécurisée (DoD 3-pass ; prévient sur SSD)
 uv run guardiabox secure-delete rapport.pdf --passes 3
+
+# Crypto-erase = overwrite + suppression ligne vault DB + audit
+uv run guardiabox secure-delete rapport.pdf.crypt \
+    --method crypto-erase --vault-user alice
 
 # Initialiser le coffre multi-utilisateur (~/.guardiabox/vault.db)
 uv run guardiabox init

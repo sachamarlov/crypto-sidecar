@@ -49,6 +49,22 @@ what is actually merged on `main`.
   `encrypt` / `decrypt` that records the action in the audit log
   (and, for encrypt, persists a `vault_items` row).
 
+### Added (Phase B2 — spec 004 crypto-erase)
+- **`SecureDeleteMethod.CRYPTO_ERASE`** + CLI `secure-delete --method
+  crypto-erase --vault-user <name>` — combines the DoD overwrite with a
+  vault DB cleanup: looks up the matching `vault_items` row by filename
+  HMAC, runs the overwrite, deletes the row, appends a
+  `file.secure_delete` audit row. Honest scope documented inline:
+  GuardiaBox does not currently persist a per-file DEK separate from the
+  `.crypt` payload, so what ships is *metadata-erase + ciphertext
+  overwrite + audit attribution*, not a strict NIST SP 800-88
+  crypto-erase. The mode rejects calls without `--vault-user`.
+- New exceptions `KeyNotFoundError` (vault_items row miss → exit 3) and
+  `CryptoEraseRequiresVaultUserError` (mode without `--vault-user` →
+  exit 64). Both routed by `ui.cli.io.exit_for`.
+- `guardiabox doctor --report-ssd` reports the data_dir's storage type
+  (SSD / HDD / unknown) with the relevant recommendation.
+
 ### Added (Phase D — spec 003 RSA-share)
 - **Spec 003 — hybrid RSA-OAEP / AES-GCM share between local users.**
   `core/rsa.py` exposes `RsaWrap.wrap/unwrap` (RSA-OAEP-SHA256) and

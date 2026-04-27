@@ -25,14 +25,17 @@ import typer
 
 from guardiabox.core.exceptions import (
     CorruptedContainerError,
+    CryptoEraseRequiresVaultUserError,
     DecryptionError,
     DestinationAlreadyExistsError,
     DestinationCollidesWithSourceError,
     GuardiaBoxError,
     IntegrityError,
     InvalidContainerError,
+    KeyNotFoundError,
     MessageTooLargeError,
     PathTraversalError,
+    ShareExpiredError,
     SymlinkEscapeError,
     UnknownKdfError,
     UnsupportedVersionError,
@@ -146,6 +149,18 @@ def exit_for(exc: BaseException) -> NoReturn:  # noqa: PLR0912, PLR0915 -- wide 
     if isinstance(exc, VaultUserNotFoundError):
         typer.echo(f"Utilisateur du coffre introuvable : {exc}", err=True)
         raise typer.Exit(code=ExitCode.PATH_OR_FILE) from exc
+
+    if isinstance(exc, KeyNotFoundError):
+        typer.echo(f"Cible introuvable dans le coffre : {exc}", err=True)
+        raise typer.Exit(code=ExitCode.PATH_OR_FILE) from exc
+
+    if isinstance(exc, CryptoEraseRequiresVaultUserError):
+        typer.echo(f"Mode crypto-erase non applicable : {exc}", err=True)
+        raise typer.Exit(code=ExitCode.USAGE) from exc
+
+    if isinstance(exc, ShareExpiredError):
+        typer.echo(f"Jeton de partage expiré : {exc}", err=True)
+        raise typer.Exit(code=ExitCode.GENERIC) from exc
 
     if isinstance(exc, FileNotFoundError):
         typer.echo(f"Fichier introuvable : {exc}", err=True)

@@ -13,6 +13,7 @@ from pathlib import Path
 
 import typer
 
+from guardiabox.fileio.platform import is_ssd
 from guardiabox.persistence.database import sqlcipher_available
 from guardiabox.persistence.repositories import AuditRepository, UserRepository
 from guardiabox.security.audit import verify
@@ -27,6 +28,11 @@ def doctor_command(
         False,
         "--verify-audit",
         help="Walk the audit log and verify the hash chain (unlocks the vault).",
+    ),
+    report_ssd: bool = typer.Option(
+        False,
+        "--report-ssd",
+        help="Probe the data_dir's storage type (SSD / HDD / unknown) per spec 004.",
     ),
     data_dir: Path | None = typer.Option(None, "--data-dir", show_default=False),
     password_stdin: bool = typer.Option(
@@ -46,6 +52,19 @@ def doctor_command(
         f"({'présent' if paths.admin_config.is_file() else 'absent'})"
     )
     typer.echo(f"SQLCipher disponible  : {'oui' if sqlcipher_available() else 'non'}")
+
+    if report_ssd:
+        # Probe whichever directory exists -- the data_dir parent works on
+        # a freshly-cloned host where the vault is not yet initialised.
+        probe_target = paths.data_dir if paths.data_dir.exists() else paths.data_dir.parent
+        verdict = is_ssd(probe_target)
+        if verdict is True:
+            label = "SSD (mémoire flash) -- crypto-erase recommandé"
+        elif verdict is False:
+            label = "HDD (rotational) -- overwrite DoD efficace"
+        else:
+            label = "indéterminé -- traité comme flash par prudence (NIST SP 800-88r2)"
+        typer.echo(f"Type de support       : {label}")
 
     if not verify_audit:
         return

@@ -86,10 +86,18 @@ def test_unsupported_method_raises(tmp_path: Path) -> None:
         secure_delete(target, method=_Bogus())  # type: ignore[arg-type]
 
 
-def test_secure_delete_method_enum_has_overwrite_only() -> None:
-    """Until Phase B2 lands, CRYPTO_ERASE must not be selectable."""
+def test_secure_delete_method_enum_exposes_overwrite_and_crypto_erase() -> None:
+    """Phase B1 ships overwrite-dod; Phase B2 adds crypto-erase."""
     values = {m.value for m in SecureDeleteMethod}
-    assert values == {"overwrite-dod"}
+    assert values == {"overwrite-dod", "crypto-erase"}
+
+
+def test_secure_delete_rejects_crypto_erase_at_pure_core_layer(tmp_path: Path) -> None:
+    """`secure_delete()` is pure-core; CRYPTO_ERASE must route through CLI flow."""
+    target = tmp_path / "x.bin"
+    target.write_bytes(b"x")
+    with pytest.raises(ValueError, match="vault-aware caller"):
+        secure_delete(target, method=SecureDeleteMethod.CRYPTO_ERASE)
 
 
 @pytest.mark.parametrize("passes", [1, 2, 3, 5, 7])

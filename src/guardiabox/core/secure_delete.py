@@ -67,12 +67,32 @@ _OVERWRITE_CHUNK_BYTES: int = 64 * 1024
 class SecureDeleteMethod(StrEnum):
     """Strategy used by :func:`secure_delete`.
 
-    Only ``OVERWRITE_DOD`` is currently dispatchable — :data:`CRYPTO_ERASE`
-    will be added alongside the keystore implementation (spec 004
-    Phase B2).
+    * ``OVERWRITE_DOD`` — DoD 5220.22-M three-pass overwrite then unlink.
+      Effective on rotational media; best-effort on SSDs (wear-levelling).
+      Phase B1.
+
+    * ``CRYPTO_ERASE`` — Phase B2. Combines the DoD overwrite with a DB
+      cleanup: the matching ``vault_items`` row is deleted, every
+      encrypted-column blob is wiped from the database, and the
+      ``file.secure_delete`` audit row records the action. Faster on SSD
+      because the metadata erasure is logical rather than physical.
+
+      **Honest scope** (cf. ADR-0011 + THREAT_MODEL §4.6): GuardiaBox
+      does not currently persist a per-file DEK separate from the
+      ``.crypt`` payload (the symmetric key is derived from the user's
+      password via PBKDF2/Argon2id at decrypt time). True NIST SP 800-88
+      crypto-erase requires a per-file DEK to destroy; what we ship in
+      Phase B2 is *metadata-erase + ciphertext overwrite + audit
+      attribution*. The ciphertext bytes themselves are made
+      unrecoverable by the overwrite pass; the metadata
+      (filename, original path, sha256, kdf id) are removed from the DB.
+      The CLI rejects ``--method crypto-erase`` without ``--vault-user``
+      because the metadata path is mandatory for this method to mean
+      anything beyond a plain overwrite.
     """
 
     OVERWRITE_DOD = "overwrite-dod"
+    CRYPTO_ERASE = "crypto-erase"
 
 
 def secure_delete(
@@ -103,6 +123,14 @@ def secure_delete(
         raise ValueError(f"passes must be >= 1, got {passes}")
     if passes > MAX_OVERWRITE_PASSES:
         raise ValueError(f"passes must be <= {MAX_OVERWRITE_PASSES}, got {passes}")
+    if method is SecureDeleteMethod.CRYPTO_ERASE:
+        # Crypto-erase needs a vault session (lookup, row delete, audit) which
+        # this pure-core function intentionally does not have. Callers route
+        # through the CLI vault-aware flow instead.
+        raise ValueError(
+            "crypto-erase requires a vault-aware caller (CLI secure-delete "
+            "with --vault-user); see SecureDeleteMethod.CRYPTO_ERASE docstring"
+        )
     if method is not SecureDeleteMethod.OVERWRITE_DOD:
         raise ValueError(f"unsupported method: {method!r}")
 
