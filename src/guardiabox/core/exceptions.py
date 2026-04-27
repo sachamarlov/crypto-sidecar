@@ -90,6 +90,18 @@ class WeakPasswordError(GuardiaBoxError):
     """The password fails the configured strength policy (zxcvbn score)."""
 
 
+# ---- Vault user (multi-user) -----------------------------------------------
+
+
+class VaultUserNotFoundError(GuardiaBoxError):
+    """A vault user lookup by name returned no row.
+
+    Lives here (not in ``ui.cli._vault_audit``) so :func:`exit_for`
+    can route it through the standard mapping without dragging the
+    CLI helpers into a circular import with the audit hook.
+    """
+
+
 # ---- In-memory message bounds ----------------------------------------------
 
 

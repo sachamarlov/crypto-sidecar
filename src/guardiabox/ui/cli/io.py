@@ -36,6 +36,7 @@ from guardiabox.core.exceptions import (
     SymlinkEscapeError,
     UnknownKdfError,
     UnsupportedVersionError,
+    VaultUserNotFoundError,
     WeakKdfParametersError,
     WeakPasswordError,
 )
@@ -141,6 +142,10 @@ def exit_for(exc: BaseException) -> NoReturn:  # noqa: PLR0912, PLR0915 -- wide 
     if isinstance(exc, VaultAdminConfigInvalidError):
         typer.echo(f"Configuration du coffre invalide : {exc}", err=True)
         raise typer.Exit(code=ExitCode.CONFIG_ERROR) from exc
+
+    if isinstance(exc, VaultUserNotFoundError):
+        typer.echo(f"Utilisateur du coffre introuvable : {exc}", err=True)
+        raise typer.Exit(code=ExitCode.PATH_OR_FILE) from exc
 
     if isinstance(exc, FileNotFoundError):
         typer.echo(f"Fichier introuvable : {exc}", err=True)

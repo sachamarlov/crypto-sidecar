@@ -12,6 +12,7 @@ Responsibilities handled here:
 from __future__ import annotations
 
 from enum import StrEnum
+import hashlib
 from pathlib import Path
 import sys
 
@@ -22,8 +23,16 @@ from guardiabox.core.exceptions import MessageTooLargeError
 from guardiabox.core.kdf import Argon2idKdf, Pbkdf2Kdf
 from guardiabox.core.operations import encrypt_file, encrypt_message
 from guardiabox.fileio.safe_path import resolve_within
+from guardiabox.ui.cli._vault_audit import record_encrypt_event
 from guardiabox.ui.cli.io import ExitCode, exit_for, read_password
 from guardiabox.ui.cli.main import app
+
+#: KDF identifier byte injected into the audit metadata + VaultItem
+#: row. Maps to the constants in ``core.constants``.
+_KDF_ID_BY_CHOICE: dict[str, int] = {
+    "pbkdf2": 0x01,
+    "argon2id": 0x02,
+}
 
 
 class KdfChoice(StrEnum):
@@ -70,6 +79,18 @@ def encrypt_command(  # noqa: PLR0917 -- Typer commands expose one param per fla
         "-f",
         help="Écraser la destination si elle existe déjà.",
     ),
+    vault_user: str | None = typer.Option(
+        None,
+        "--vault-user",
+        help="Nom de l'utilisateur du coffre (active l'enregistrement audit).",
+        show_default=False,
+    ),
+    data_dir: Path | None = typer.Option(
+        None,
+        "--data-dir",
+        help="Répertoire du coffre (défaut : Settings.data_dir).",
+        show_default=False,
+    ),
 ) -> None:
     """Chiffrer un fichier ou un message avec un mot de passe utilisateur."""
     try:
@@ -85,6 +106,21 @@ def encrypt_command(  # noqa: PLR0917 -- Typer commands expose one param per fla
         exit_for(exc)
 
     typer.echo(f"Chiffré : {target}")
+
+    if vault_user is not None and path is not None:
+        try:
+            record_encrypt_event(
+                data_dir=data_dir,
+                password_stdin=password_stdin,
+                vault_username=vault_user,
+                plaintext_path=path,
+                container_path=target,
+                ciphertext_sha256=_sha256_of(target),
+                kdf_id=_KDF_ID_BY_CHOICE[kdf.value],
+            )
+            typer.echo(f"Audit       : opération enregistrée pour '{vault_user}'.")
+        except (Exception, KeyboardInterrupt) as exc:
+            exit_for(exc)
 
 
 def _dispatch(
@@ -185,3 +221,16 @@ def _build_kdf(choice: KdfChoice) -> Pbkdf2Kdf | Argon2idKdf:
     if choice is KdfChoice.ARGON2ID:
         return Argon2idKdf()
     return Pbkdf2Kdf()
+
+
+def _sha256_of(path: Path) -> bytes:
+    """Streaming SHA-256 over the bytes of ``path`` (memory-bounded)."""
+    digest = hashlib.sha256()
+    chunk_size = 64 * 1024
+    with path.open("rb") as fh:
+        while True:
+            block = fh.read(chunk_size)
+            if not block:
+                break
+            digest.update(block)
+    return digest.digest()
