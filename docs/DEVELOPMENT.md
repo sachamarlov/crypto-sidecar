@@ -193,3 +193,118 @@ lint settings; copy to `.vscode/settings.json` (gitignored).
    - Sign the resulting `.exe` (development cert during MVP).
    - Attach artefacts to a GitHub Release.
 4. Update `CHANGELOG.md` is automatic; ADRs and specs already live in `main`.
+
+## 9. Build & test the release artefact locally (Windows)
+
+**Verified end-to-end on 2026-04-28** -- this section reflects what
+actually works, including the gotchas observed on a clean Windows 11
+machine.
+
+### 9.1 Toolchain prerequisites
+
+Three install steps with documented gotchas:
+
+1. **Rust MSVC toolchain.** The official `https://win.rustup.rs/x86_64`
+   download is sometimes blocked by endpoint protection (TLS reset).
+   The fallback that worked: `winget install Rustlang.Rustup
+--accept-source-agreements --accept-package-agreements`.
+
+2. **Default toolchain ships as `gnu` (MinGW)**, but Tauri 2 on Windows
+   needs MSVC. After install:
+
+   ```powershell
+   rustup toolchain install stable-x86_64-pc-windows-msvc
+   rustup default stable-x86_64-pc-windows-msvc
+   ```
+
+3. **Visual Studio 2022 Build Tools** (or VS 2022 Community) must be
+   present at `C:\Program Files\Microsoft Visual Studio\2022\`. Tauri
+   needs `link.exe`, `cl.exe`, the Windows SDK, and `vcvars64.bat`.
+
+### 9.2 PATH ordering (critical Windows-only gotcha)
+
+In Git for Windows' bash MINGW shell, `/usr/bin/link.exe` is the GNU
+hard-linker, **not** the MSVC linker. When Cargo tries to link, it
+finds the wrong `link` first and errors with `extra operand` /
+`dlltool.exe: program not found`.
+
+The fix is to source MSVC's `vcvars64.bat` **after** putting cargo's
+bin in PATH, so MSVC's `link.exe` and SDK paths are prepended:
+
+```cmd
+set PATH=%USERPROFILE%\.cargo\bin;%PATH%
+"C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
+```
+
+### 9.3 Build the sidecar (Python + PyInstaller)
+
+```bash
+uv run python scripts/build_sidecar.py --release --smoke-test
+```
+
+Produces `src/guardiabox/ui/tauri/src-tauri/binaries/guardiabox-sidecar-x86_64-pc-windows-msvc.exe`.
+Smoke test asserts handshake + `/healthz` + clean SIGTERM.
+
+### 9.4 Build the frontend bundle (Vite)
+
+```bash
+pnpm --dir src/guardiabox/ui/tauri/frontend build
+```
+
+Produces `frontend/dist/`. Required before `tauri build` because
+`tauri.conf.json > beforeBuildCommand` is currently disabled (pnpm
+path-resolution bug under src-tauri cwd).
+
+### 9.5 Build the Tauri bundle
+
+From a Developer Command Prompt (or any cmd shell where MSVC is in
+PATH per 9.2):
+
+```cmd
+cd C:\path\to\repo\src\guardiabox\ui\tauri\src-tauri
+node ..\frontend\node_modules\@tauri-apps\cli\tauri.js build
+```
+
+Tauri:
+
+1. Compiles ~600 Rust deps (one-time ~6-10 min, then cached in
+   `target/`).
+2. Auto-downloads NSIS 3.11 + WiX 3.14 to produce installers.
+3. Embeds the sidecar from `binaries/` into the bundle via
+   `bundle.externalBin`.
+
+Outputs:
+
+- `target/release/guardiabox.exe` -- the Tauri shell (~6 MiB).
+- `target/release/guardiabox-sidecar.exe` -- the PyInstaller sidecar
+  copied next to the shell (~42 MiB).
+- `target/release/bundle/nsis/GuardiaBox_<version>_x64-setup.exe` --
+  NSIS installer (~46 MiB compressed).
+- `target/release/bundle/msi/GuardiaBox_<version>_x64_en-US.msi` and
+  `_fr-FR.msi` -- WiX MSI installers (~46 MiB each).
+
+### 9.6 Run the bundled app
+
+```cmd
+target\release\bundle\nsis\GuardiaBox_0.1.0_x64-setup.exe /S
+"%PROGRAMFILES%\GuardiaBox\GuardiaBox.exe"
+```
+
+### 9.7 NFR measurements on the produced artefact
+
+```bash
+uv run python scripts/verify_nfr.py \
+  --binary src/guardiabox/ui/tauri/src-tauri/target/release/guardiabox-sidecar.exe \
+  --gui-binary "/c/Program Files/GuardiaBox/GuardiaBox.exe" \
+  --json
+```
+
+Persist as `nfr-report-local.json` (gitignored).
+
+### 9.8 Anti-oracle smoke test (manual)
+
+After unlocking the vault, encrypt a small file with one password and
+attempt to decrypt with a wrong password. The error toast must show
+the generic anti-oracle string -- never an exception class name,
+never a stack trace, never a hint about which step failed
+(cf. ADR-0015).
