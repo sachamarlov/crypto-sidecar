@@ -148,8 +148,10 @@ def _pyinstaller_cmd(*, output_name: str, release: bool) -> list[str]:
         # Hidden imports PyInstaller's static analysis cannot resolve.
         "--hidden-import",
         "argon2",
+        # argon2-cffi 25.x removed the public argon2._ffi alias; the
+        # compiled binding now lives behind argon2.low_level.
         "--hidden-import",
-        "argon2._ffi",
+        "argon2.low_level",
         "--hidden-import",
         "aiosqlite",
         "--hidden-import",
@@ -168,9 +170,12 @@ def _pyinstaller_cmd(*, output_name: str, release: bool) -> list[str]:
         "--clean",
         "--noconfirm",
     ]
-    if sys.platform == "win32":
-        # Hide the spawned console on Windows -- the Tauri shell owns the UI.
-        args.append("--noconsole")
+    # Note: we deliberately do NOT pass --noconsole on Windows. That
+    # flag suppresses the bundle's stdout pipe entirely, which breaks
+    # the handshake protocol the Tauri shell relies on (it reads
+    # GUARDIABOX_SIDECAR=... from stdout). Tauri spawns the sidecar
+    # with CREATE_NO_WINDOW already, so the console window is not
+    # visible to end users -- only the pipes stay alive.
     if release:
         # ``--strip`` is a no-op on Windows but cuts size on Linux/macOS.
         args.append("--strip")
