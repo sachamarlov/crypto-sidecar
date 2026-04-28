@@ -6,17 +6,17 @@
 
 Last refresh: **2026-04-27** (post Phase I).
 
-| Code  | Requirement                                                        | Measured (post-build)                  | Verified by                              | Status |
-| ----- | ------------------------------------------------------------------ | -------------------------------------- | ---------------------------------------- | ------ |
-| NFR-1 | Encrypt + decrypt >= 100 MiB/s on a modern laptop SSD              | n/a (perf test markers)                | `tests/perf/test_throughput.py`          | OK     |
-| NFR-2 | KDF derivation 50 ms <= T <= 1 s on the same hardware              | n/a (perf test markers)                | `tests/perf/test_kdf_timing.py`          | OK     |
-| NFR-3 | Cold start CLI < 200 ms ; cold start GUI < 1.5 s                   | CLI: ~1900 ms ; GUI: ~5700 ms          | `scripts/verify_nfr.py` + CI release job | DEBT   |
-| NFR-4 | Sidecar memory footprint < 100 MiB at idle                         | **116 MiB** (parent + child processes) | `scripts/verify_nfr.py` + CI release job | DEBT   |
-| NFR-5 | Distributable binary (Windows) <= 80 MiB after PyInstaller + Tauri | **41.7 MiB** (sidecar) ; TBD Tauri     | `scripts/verify_nfr.py` + CI release job | OK     |
-| NFR-6 | All UI strings localised (FR + EN) via `react-i18next`             | n/a                                    | spec 000-tauri-frontend H-12             | OK     |
-| NFR-7 | WCAG 2.2 AA accessibility on the GUI                               | n/a (manual)                           | H-13 (axe-playwright) + manual review    | DEBT   |
-| NFR-8 | Test coverage >= 80 % overall, >= 95 % core/security               | n/a (517 unit tests pass)              | `scripts/check_coverage_gates.py`        | OK     |
-| NFR-9 | Lint, type, tests, security all green for every merge              | n/a                                    | `.github/workflows/ci.yml`               | OK     |
+| Code  | Requirement                                                        | Measured (post-build)                           | Verified by                              | Status |
+| ----- | ------------------------------------------------------------------ | ----------------------------------------------- | ---------------------------------------- | ------ |
+| NFR-1 | Encrypt + decrypt >= 100 MiB/s on a modern laptop SSD              | n/a (perf test markers)                         | `tests/perf/test_throughput.py`          | OK     |
+| NFR-2 | KDF derivation 50 ms <= T <= 1 s on the same hardware              | n/a (perf test markers)                         | `tests/perf/test_kdf_timing.py`          | OK     |
+| NFR-3 | Cold start CLI < 200 ms ; cold start GUI < 1.5 s                   | CLI: ~1900 ms ; GUI: ~5700 ms                   | `scripts/verify_nfr.py` + CI release job | DEBT   |
+| NFR-4 | Sidecar memory footprint < 100 MiB at idle                         | **116 MiB** (parent + child processes)          | `scripts/verify_nfr.py` + CI release job | DEBT   |
+| NFR-5 | Distributable binary (Windows) <= 80 MiB after PyInstaller + Tauri | sidecar 41.7 MiB ; NSIS 45.7 MiB ; MSI 46.7 MiB | `scripts/verify_nfr.py` + CI release job | OK     |
+| NFR-6 | All UI strings localised (FR + EN) via `react-i18next`             | n/a                                             | spec 000-tauri-frontend H-12             | OK     |
+| NFR-7 | WCAG 2.2 AA accessibility on the GUI                               | n/a (manual)                                    | H-13 (axe-playwright) + manual review    | DEBT   |
+| NFR-8 | Test coverage >= 80 % overall, >= 95 % core/security               | n/a (517 unit tests pass)                       | `scripts/check_coverage_gates.py`        | OK     |
+| NFR-9 | Lint, type, tests, security all green for every merge              | n/a                                             | `.github/workflows/ci.yml`               | OK     |
 
 ## Detailed evidence
 
@@ -115,21 +115,23 @@ is published, the path forward is in ADR-0012.
 
 ### NFR-5 -- Distributable binary size
 
-Two artefacts in scope: the **sidecar binary** (PyInstaller
-output) and the **Tauri bundle** (NSIS `.exe`).
+Three artefacts in scope: the **sidecar binary** (PyInstaller
+output), the **Tauri shell** (Rust + WebView2 + frontend
+embedded), and the **Tauri installer bundle** (NSIS / MSI).
 
-| Artefact                         | Measured (local Win11) | Target | Verdict |
-| -------------------------------- | ---------------------- | ------ | ------- |
-| Sidecar Windows PE (--release)   | **41.7 MiB**           | 80 MiB | OK      |
-| Sidecar Linux ELF (CI)           | TBD                    | 80 MiB | TBD     |
-| Sidecar macOS Mach-O (CI)        | TBD                    | 80 MiB | TBD     |
-| Tauri bundle Windows .exe (NSIS) | TBD                    | 80 MiB | TBD     |
-| Tauri bundle Windows .msi        | TBD                    | 80 MiB | TBD     |
+| Artefact                                | Measured Win11 | Target | Verdict |
+| --------------------------------------- | -------------- | ------ | ------- |
+| Sidecar PE (PyInstaller --release)      | **41.7 MiB**   | 80 MiB | OK      |
+| `guardiabox.exe` shell (Tauri release)  | **6.3 MiB**    | 80 MiB | OK      |
+| NSIS installer `GuardiaBox_*-setup.exe` | **45.7 MiB**   | 80 MiB | OK      |
+| MSI installer `GuardiaBox_*_x64.msi`    | **46.7 MiB**   | 80 MiB | OK      |
+| Sidecar Linux ELF (CI)                  | TBD            | 80 MiB | TBD     |
+| Sidecar macOS Mach-O (CI)               | TBD            | 80 MiB | TBD     |
 
-The Windows PE sidecar comes in at **52 % of the budget**, so
-even if the Tauri shell adds 30+ MiB on top we have head-room
-for the v0.1.0 release. Cross-platform numbers fill in once the
-release pipeline runs (gated by GitHub Actions billing).
+All measured Windows artefacts come in at **57-58 % of the
+budget**. The NSIS installer is the canonical release artefact
+(smaller + auto-handles WebView2 runtime check); MSI is shipped
+in en-US + fr-FR locales for users who deploy via Group Policy.
 
 CI fails the `nfr-verification` job when **any** measured
 artefact exceeds 80 MiB. The `release.yml` job does not silently
