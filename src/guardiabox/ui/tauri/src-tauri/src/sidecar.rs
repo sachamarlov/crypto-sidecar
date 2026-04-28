@@ -23,6 +23,17 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::{Child, Command};
 use tracing::{error, info};
 
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
+/// Windows CreateProcess flag: do not open a console window for the
+/// child. Required because the sidecar binary is built as a "Console
+/// Subsystem" PE -- without --noconsole at PyInstaller time we keep
+/// stdout/stderr pipes alive (needed for the handshake) but Windows
+/// would otherwise pop a stray cmd window every launch.
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
 const HANDSHAKE_PREFIX: &str = "GUARDIABOX_SIDECAR=";
 const SIDECAR_BIN_PREFIX: &str = "binaries/guardiabox-sidecar";
 const HANDSHAKE_TIMEOUT_SECS: u64 = 10;
@@ -45,10 +56,17 @@ pub async fn start(app: AppHandle) -> Result<()> {
     let bin_path = resolve_binary_path(&app)?;
     info!(path = %bin_path.display(), "spawning sidecar");
 
-    let mut child: Child = Command::new(&bin_path)
-        .stdout(std::process::Stdio::piped())
+    let mut cmd = Command::new(&bin_path);
+    cmd.stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
-        .kill_on_drop(true)
+        .kill_on_drop(true);
+
+    #[cfg(target_os = "windows")]
+    {
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    let mut child: Child = cmd
         .spawn()
         .with_context(|| format!("failed to spawn {}", bin_path.display()))?;
 
