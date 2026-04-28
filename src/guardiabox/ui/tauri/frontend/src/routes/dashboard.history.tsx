@@ -13,10 +13,11 @@ function HistoryModal(): React.ReactElement {
   const { t } = useTranslation();
   const [actionFilter, setActionFilter] = useState("");
   const [limit, setLimit] = useState(200);
-  const auditQuery = useAudit({
-    action: actionFilter.length > 0 ? actionFilter : undefined,
-    limit,
-  });
+  // exactOptionalPropertyTypes rejects { action: undefined }; build the
+  // filter object conditionally so the key is absent when no filter set.
+  const auditFilter =
+    actionFilter.length > 0 ? { action: actionFilter, limit } : { limit };
+  const auditQuery = useAudit(auditFilter);
   const verifyMutation = useAuditVerify();
 
   const onVerify = (): void => {

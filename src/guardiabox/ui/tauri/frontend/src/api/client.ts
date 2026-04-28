@@ -48,12 +48,20 @@ async function request<T>(path: string, init: RequestInitWithBody = {}): Promise
   if (sessionId !== null) {
     headers["X-GuardiaBox-Session"] = sessionId;
   }
-  const response = await fetch(url, {
-    ...init,
+  // exactOptionalPropertyTypes refuses { body: undefined } and forbids
+  // spreading our `unknown` body straight into RequestInit. Build the
+  // fetch init explicitly: drop body from the spread, JSON-encode if
+  // present, otherwise leave the key absent.
+  const { body: rawBody, headers: _h, method: _m, ...rest } = init;
+  const fetchInit: RequestInit = {
+    ...rest,
     method: init.method ?? "GET",
     headers,
-    body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
-  });
+  };
+  if (rawBody !== undefined) {
+    fetchInit.body = JSON.stringify(rawBody);
+  }
+  const response = await fetch(url, fetchInit);
   if (response.status === 204) {
     return undefined as T;
   }

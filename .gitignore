@@ -169,3 +169,8 @@ tmp/
 temp/
 .tmp/
 nfr-report-local.json
+
+# Vite/TSC compiled config artifacts
+src/guardiabox/ui/tauri/frontend/vite.config.d.ts
+src/guardiabox/ui/tauri/frontend/vite.config.js
+src/guardiabox/ui/tauri/frontend/tsconfig*.tsbuildinfo
