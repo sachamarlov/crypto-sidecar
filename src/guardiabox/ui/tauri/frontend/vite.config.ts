@@ -7,7 +7,10 @@ import { defineConfig } from "vite";
 const TAURI_DEV_HOST = process.env.TAURI_DEV_HOST;
 
 // https://vitejs.dev/config/
-export default defineConfig(async () => ({
+// Vite 7 strict types reject the legacy `defineConfig(async () => (...))`
+// signature; we never awaited anything in the body anyway, so the
+// function form is enough.
+export default defineConfig(() => ({
   plugins: [
     TanStackRouterVite({ autoCodeSplitting: true }),
     react(),
@@ -35,8 +38,12 @@ export default defineConfig(async () => ({
   build: {
     target: "es2022",
     sourcemap: true,
-    minify: "esbuild",
-    cssMinify: "lightningcss",
+    minify: "esbuild" as const,
+    // cssMinify "lightningcss" requires the optional lightningcss
+    // dep + `css.transformer: "lightningcss"`; under Vite 7 strict
+    // typings the literal is rejected when the dep is not installed.
+    // "esbuild" is the default and adequate -- CSS payload is tiny.
+    cssMinify: "esbuild" as const,
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
