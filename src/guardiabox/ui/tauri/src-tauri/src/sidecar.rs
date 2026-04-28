@@ -52,6 +52,20 @@ pub async fn start(app: AppHandle) -> Result<()> {
         .spawn()
         .with_context(|| format!("failed to spawn {}", bin_path.display()))?;
 
+    // Drain stderr immediately. If we leave it piped without reading,
+    // uvicorn's stderr buffer fills up after ~64 KiB and the worker
+    // thread blocks on write -- the sidecar then never emits its
+    // handshake on stdout, and we time out. Forwarding to our tracing
+    // layer also surfaces Python tracebacks during dev.
+    if let Some(stderr) = child.stderr.take() {
+        let mut err_reader = BufReader::new(stderr).lines();
+        tokio::spawn(async move {
+            while let Ok(Some(line)) = err_reader.next_line().await {
+                info!(target: "sidecar.stderr", "{}", line);
+            }
+        });
+    }
+
     let stdout = child
         .stdout
         .take()
@@ -93,29 +107,58 @@ fn resolve_binary_path(app: &AppHandle) -> Result<std::path::PathBuf> {
     } else {
         ""
     };
-    let filename = format!("{SIDECAR_BIN_PREFIX}-{triple}{ext}");
+    // SIDECAR_BIN_PREFIX includes the `binaries/` prefix needed by the
+    // tauri.conf.json `externalBin` declaration, but at runtime we
+    // resolve plain filenames (no leading dir) because Tauri places
+    // the sidecar next to the .exe in both `cargo build --release`
+    // and the bundled installer.
+    let bin_name = std::path::Path::new(SIDECAR_BIN_PREFIX)
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("guardiabox-sidecar");
+    // Tauri 2 *strips* the platform-triple from `externalBin` entries
+    // when bundling -- the binary that lives next to the .exe at
+    // runtime is `guardiabox-sidecar.exe`, not the original
+    // `guardiabox-sidecar-x86_64-pc-windows-msvc.exe`. Search both
+    // forms so the same code works in dev, in `cargo build --release`
+    // (no bundling), and in the bundled installer.
+    let stripped = format!("{bin_name}{ext}");
+    let with_triple = format!("{bin_name}-{triple}{ext}");
 
-    // Tauri places externalBin entries next to the shell at runtime;
-    // resource_dir() returns that path on bundled builds. In dev mode
-    // we fall back to the in-tree binaries/ directory.
-    let resource = app
+    let resource_dir = app
         .path()
         .resource_dir()
-        .context("resource_dir unavailable")?
-        .join(&filename);
-    if resource.is_file() {
-        return Ok(resource);
+        .context("resource_dir unavailable")?;
+    for candidate in [
+        resource_dir.join(&stripped),
+        resource_dir.join(&with_triple),
+    ] {
+        if candidate.is_file() {
+            return Ok(candidate);
+        }
+    }
+    // Tauri also exposes the executable's parent dir; useful when
+    // resource_dir() points to the install dir but the sidecar was
+    // copied next to the .exe by `cargo build` (non-bundled release).
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(exe_dir) = exe.parent() {
+            for candidate in [exe_dir.join(&stripped), exe_dir.join(&with_triple)] {
+                if candidate.is_file() {
+                    return Ok(candidate);
+                }
+            }
+        }
     }
     // Dev fallback: `cargo tauri dev` runs from src-tauri/.
     let dev = std::env::current_dir()
         .context("no current dir")?
         .join("binaries")
-        .join(&filename);
+        .join(&with_triple);
     if dev.is_file() {
         return Ok(dev);
     }
     Err(anyhow!(
-        "sidecar binary {filename} not found in resource dir or dev fallback"
+        "sidecar binary {stripped} (or {with_triple}) not found near the executable, in resource dir, or in dev fallback"
     ))
 }
 
