@@ -26,9 +26,21 @@ describe("evaluatePassword", () => {
     expect(evaluatePassword("Aa1!Aa1!Aa1!Aa1!Aa1!").score).toBe(4);
   });
 
-  it("attaches a non-empty label per score", () => {
-    for (const pwd of ["", "a", "aaaaaaaa", "aaaaaaaa1234", "aaaaAAAA12345678", "Aa1!Aa1!Aa1!Aa1!Aa1!"]) {
-      expect(evaluatePassword(pwd).label.length).toBeGreaterThan(0);
+  it("returns a score in the [0,4] range for any input", () => {
+    // Audit E P0-7: the label is no longer baked into the eval --
+    // PasswordField resolves it via t(`password.strength.${score}`).
+    // This test stays as a contract guard on the score range.
+    for (const pwd of [
+      "",
+      "a",
+      "aaaaaaaa",
+      "aaaaaaaa1234",
+      "aaaaAAAA12345678",
+      "Aa1!Aa1!Aa1!Aa1!Aa1!",
+    ]) {
+      const { score } = evaluatePassword(pwd);
+      expect(score).toBeGreaterThanOrEqual(0);
+      expect(score).toBeLessThanOrEqual(4);
     }
   });
 });

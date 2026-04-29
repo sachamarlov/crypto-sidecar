@@ -9,13 +9,16 @@
  */
 
 import { invoke } from "@tauri-apps/api/core";
+import { SidecarUnreachableError } from "./errors";
 import type { SidecarConnection } from "./types";
 
 let cached: SidecarConnection | null = null;
 
 /**
  * Get the active sidecar connection. Polls the Tauri command until
- * the handshake is complete.
+ * the handshake is complete. Throws `SidecarUnreachableError` with
+ * `stage="handshake"` after 10 s so the UI helper can surface a
+ * typed toast (audit B P0-2).
  */
 export async function getSidecarConnection(): Promise<SidecarConnection> {
   if (cached !== null) {
@@ -37,7 +40,7 @@ export async function getSidecarConnection(): Promise<SidecarConnection> {
     }
     await sleep(intervalMs);
   }
-  throw new Error("sidecar handshake did not complete within 10s");
+  throw new SidecarUnreachableError("handshake");
 }
 
 /**

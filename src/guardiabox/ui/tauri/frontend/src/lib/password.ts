@@ -5,43 +5,34 @@
  * :mod:`guardiabox.security.password` is the authoritative gate --
  * the client evaluation is purely a UX hint.
  *
- * Score band -> label mapping aligns with the TUI strength bar:
+ * Score band -> i18n key mapping (audit E P0-7 fix: previously the
+ * labels were hard-coded French literals, breaking NFR-6 EN coverage):
  *
- * | Length / classes | Score | Label             |
- * | ---------------- | ----- | ----------------- |
- * | < 8              | 0     | Très faible       |
- * | 8..11 + 1 class  | 1     | Faible            |
- * | 12..15 + 2 cls   | 2     | Moyen             |
- * | 16+ + 3 classes  | 3     | Bon               |
- * | 20+ + 4 classes  | 4     | Excellent         |
+ * | Length / classes | Score | i18n key                |
+ * | ---------------- | ----- | ----------------------- |
+ * | < 8              | 0     | password.strength.0     |
+ * | 8..11 + 1 class  | 1     | password.strength.1     |
+ * | 12..15 + 2 cls   | 2     | password.strength.2     |
+ * | 16+ + 3 classes  | 3     | password.strength.3     |
+ * | 20+ + 4 classes  | 4     | password.strength.4     |
+ *
+ * The label is resolved by `PasswordField` via `t("password.strength.${score}")`.
  */
 
+export type PasswordScore = 0 | 1 | 2 | 3 | 4;
+
 export interface PasswordEval {
-  score: 0 | 1 | 2 | 3 | 4;
-  label: string;
+  score: PasswordScore;
 }
 
-const CHAR_CLASSES: ReadonlyArray<RegExp> = [
-  /[a-z]/u,
-  /[A-Z]/u,
-  /[0-9]/u,
-  /[^A-Za-z0-9]/u,
-];
-
-const LABEL_BY_SCORE: Record<0 | 1 | 2 | 3 | 4, string> = {
-  0: "Très faible",
-  1: "Faible",
-  2: "Moyen",
-  3: "Bon",
-  4: "Excellent",
-};
+const CHAR_CLASSES: ReadonlyArray<RegExp> = [/[a-z]/u, /[A-Z]/u, /[0-9]/u, /[^A-Za-z0-9]/u];
 
 export function evaluatePassword(password: string): PasswordEval {
   if (password.length === 0) {
-    return { score: 0, label: LABEL_BY_SCORE[0] };
+    return { score: 0 };
   }
   const classes = CHAR_CLASSES.filter((re) => re.test(password)).length;
-  let score: 0 | 1 | 2 | 3 | 4 = 0;
+  let score: PasswordScore = 0;
   if (password.length >= 20 && classes >= 4) {
     score = 4;
   } else if (password.length >= 16 && classes >= 3) {
@@ -53,11 +44,11 @@ export function evaluatePassword(password: string): PasswordEval {
   } else {
     score = 0;
   }
-  return { score, label: LABEL_BY_SCORE[score] };
+  return { score };
 }
 
 /** Hex colour (oklch fallback) keyed to score for the strength bar. */
-export function strengthColor(score: 0 | 1 | 2 | 3 | 4): string {
+export function strengthColor(score: PasswordScore): string {
   if (score >= 3) return "var(--color-primary)";
   if (score === 2) return "oklch(0.75 0.18 70)";
   return "var(--color-destructive)";

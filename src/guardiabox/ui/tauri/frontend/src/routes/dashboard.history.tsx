@@ -1,4 +1,5 @@
 import { useAudit, useAuditVerify } from "@/api/queries";
+import { toastSidecarError } from "@/lib/sidecarErrors";
 import { createFileRoute } from "@tanstack/react-router";
 import { CheckCircle2, ShieldAlert } from "lucide-react";
 import { useState } from "react";
@@ -15,8 +16,7 @@ function HistoryModal(): React.ReactElement {
   const [limit, setLimit] = useState(200);
   // exactOptionalPropertyTypes rejects { action: undefined }; build the
   // filter object conditionally so the key is absent when no filter set.
-  const auditFilter =
-    actionFilter.length > 0 ? { action: actionFilter, limit } : { limit };
+  const auditFilter = actionFilter.length > 0 ? { action: actionFilter, limit } : { limit };
   const auditQuery = useAudit(auditFilter);
   const verifyMutation = useAuditVerify();
 
@@ -29,7 +29,7 @@ function HistoryModal(): React.ReactElement {
           toast.error(t("history.verify_fail", { sequence: resp.first_bad_sequence }));
         }
       },
-      onError: () => toast.error(t("errors.network")),
+      onError: (err) => toastSidecarError(err, t),
     });
   };
 

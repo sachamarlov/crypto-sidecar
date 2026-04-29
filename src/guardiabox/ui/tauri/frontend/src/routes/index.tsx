@@ -1,5 +1,5 @@
 import { isUnlockedAtom } from "@/stores/lock";
-import { createFileRoute, Navigate } from "@tanstack/react-router";
+import { Navigate, createFileRoute } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
 
 export const Route = createFileRoute("/")({

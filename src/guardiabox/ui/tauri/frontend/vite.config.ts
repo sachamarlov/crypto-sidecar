@@ -11,11 +11,7 @@ const TAURI_DEV_HOST = process.env.TAURI_DEV_HOST;
 // signature; we never awaited anything in the body anyway, so the
 // function form is enough.
 export default defineConfig(() => ({
-  plugins: [
-    TanStackRouterVite({ autoCodeSplitting: true }),
-    react(),
-    tailwindcss(),
-  ],
+  plugins: [TanStackRouterVite({ autoCodeSplitting: true }), react(), tailwindcss()],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
@@ -27,9 +23,7 @@ export default defineConfig(() => ({
     port: 1420,
     strictPort: true,
     host: TAURI_DEV_HOST || false,
-    hmr: TAURI_DEV_HOST
-      ? { protocol: "ws", host: TAURI_DEV_HOST, port: 1421 }
-      : undefined,
+    hmr: TAURI_DEV_HOST ? { protocol: "ws", host: TAURI_DEV_HOST, port: 1421 } : undefined,
     watch: {
       // Tell Vite to ignore watching the Rust src
       ignored: ["**/src-tauri/**"],
@@ -49,12 +43,8 @@ export default defineConfig(() => ({
       output: {
         manualChunks: {
           "react-vendor": ["react", "react-dom"],
-          "tanstack": [
-            "@tanstack/react-query",
-            "@tanstack/react-router",
-            "@tanstack/react-table",
-          ],
-          "three": ["three", "@react-three/fiber", "@react-three/drei"],
+          tanstack: ["@tanstack/react-query", "@tanstack/react-router", "@tanstack/react-table"],
+          three: ["three", "@react-three/fiber", "@react-three/drei"],
         },
       },
     },

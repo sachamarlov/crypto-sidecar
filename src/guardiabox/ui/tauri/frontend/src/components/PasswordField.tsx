@@ -41,7 +41,8 @@ export function PasswordField({
   const helperId = useId();
 
   const evaluation = evaluatePassword(value);
-  const filled = value.length === 0 ? 0 : Math.max(1, Math.round((evaluation.score / 4) * BAR_STEPS));
+  const filled =
+    value.length === 0 ? 0 : Math.max(1, Math.round((evaluation.score / 4) * BAR_STEPS));
   const empty = BAR_STEPS - filled;
   const colour = strengthColor(evaluation.score);
 
@@ -51,6 +52,7 @@ export function PasswordField({
         id={inputId}
         type="password"
         autoComplete="current-password"
+        // biome-ignore lint/a11y/noAutofocus: lock screen and create-user input warrant immediate focus per UX spec.
         autoFocus={autoFocus}
         disabled={disabled}
         value={value}
@@ -77,7 +79,9 @@ export function PasswordField({
             <span className="text-muted-foreground/40">{"░".repeat(empty)}</span>
           </span>
           <span className="text-muted-foreground">
-            {value.length === 0 ? t("password.hint_empty") : evaluation.label}
+            {value.length === 0
+              ? t("password.hint_empty")
+              : t(`password.strength.${evaluation.score}`)}
           </span>
         </div>
       ) : null}

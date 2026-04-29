@@ -19,14 +19,29 @@
       "yes": "Oui",
       "no": "Non",
       "language": "Langue",
-      "theme": "Thème"
+      "theme": "Thème",
+      "retry": "Réessayer"
+    },
+    "window": {
+      "controls_label": "Contrôles de la fenêtre",
+      "minimize": "Réduire la fenêtre",
+      "maximize": "Agrandir / restaurer la fenêtre",
+      "close": "Fermer la fenêtre"
     },
     "password": {
       "placeholder": "Mot de passe",
       "aria_label": "Champ de mot de passe (saisie masquée)",
       "hint_empty": "Saisir un mot de passe",
       "confirm_placeholder": "Confirmer le mot de passe",
-      "min_length": "Longueur minimale : 12 caractères"
+      "confirm_mismatch": "Les mots de passe ne correspondent pas.",
+      "min_length": "Longueur minimale : 12 caractères",
+      "strength": {
+        "0": "Très faible",
+        "1": "Faible",
+        "2": "Moyen",
+        "3": "Bon",
+        "4": "Excellent"
+      }
     },
     "lock": {
       "title": "Coffre verrouillé",
@@ -37,12 +52,16 @@
       "init_subtitle": "Choisissez un mot de passe administrateur fort. Il ne peut pas être récupéré.",
       "init_kdf_label": "Fonction de dérivation",
       "init_submit": "Créer le coffre",
+      "init_acknowledgement": "Je comprends que ce mot de passe est irrécupérable. La perte du mot de passe entraîne la perte définitive du coffre.",
       "auth_failure_constant": "Mot de passe administrateur incorrect ou coffre non initialisé.",
-      "init_success": "Coffre initialisé. Vous pouvez maintenant le déverrouiller."
+      "init_success": "Coffre initialisé. Vous pouvez maintenant le déverrouiller.",
+      "booting_sidecar": "Démarrage du sidecar local…",
+      "sidecar_unreachable_title": "Sidecar local injoignable"
     },
     "dashboard": {
       "title": "Tableau de bord",
       "users_section": "Utilisateurs locaux",
+      "auto_lock_aria": "Verrouillage automatique dans {{time}}",
       "actions": {
         "encrypt": "Chiffrer un fichier",
         "decrypt": "Déchiffrer un fichier",
@@ -67,6 +86,7 @@
       "kdf_argon2id": "Argon2id (m=64 MiB, t=3, p=1, recommandation OWASP 2026)",
       "submit": "Chiffrer",
       "success": "Fichier chiffré : {{path}}",
+      "dropped": "Fichier déposé : {{path}}",
       "error_path_required": "Le chemin du fichier est obligatoire."
     },
     "decrypt": {
@@ -76,7 +96,10 @@
       "submit": "Déchiffrer",
       "success": "Fichier déchiffré : {{path}}",
       "anti_oracle_failure": "Échec du déchiffrement. Mot de passe incorrect ou conteneur altéré.",
-      "info_anti_oracle": "Le message d'erreur est volontairement uniforme pour empêcher tout oracle de déchiffrement."
+      "info_anti_oracle": "Le message d'erreur est volontairement uniforme pour empêcher tout oracle de déchiffrement.",
+      "invalid_container": "Conteneur invalide. Le fichier n'est pas un .crypt valide.",
+      "unsupported_version": "Version de conteneur non supportée. Le fichier provient peut-être d'une version plus récente.",
+      "unknown_error": "Erreur inconnue lors du déchiffrement."
     },
     "share": {
       "title": "Partager un .crypt",
@@ -143,9 +166,20 @@
     },
     "errors": {
       "session_required": "Session non valide. Reconnectez-vous au coffre.",
+      "session_expired": "Session expirée. Reconnectez-vous au coffre.",
       "rate_limited": "Trop de tentatives. Patientez avant de réessayer.",
       "network": "Erreur réseau. Le sidecar local est-il démarré ?",
-      "weak_password": "Mot de passe trop faible (minimum 12 caractères + score zxcvbn ≥ 3)."
+      "sidecar_server": "Le sidecar a rencontré une erreur interne. Consultez les journaux et redémarrez GuardiaBox si le problème persiste.",
+      "unknown": "Erreur inattendue. Réessayez ou redémarrez GuardiaBox.",
+      "weak_password": "Mot de passe trop faible (minimum 12 caractères + score zxcvbn ≥ 3).",
+      "sidecar": {
+        "handshake": "Le sidecar local n'a pas répondu en 10 secondes.",
+        "handshake_hint": "Redémarrez GuardiaBox. Si le problème persiste, consultez %TEMP%/guardiabox-sidecar.log (en activant GUARDIABOX_DEBUG_LOG=1).",
+        "fetch": "Connexion au sidecar perdue. Le processus a-t-il été tué ou bloqué par votre antivirus ?",
+        "fetch_hint": "Vérifiez que GuardiaBox.exe tourne dans le gestionnaire de tâches. Ajoutez-le à la liste blanche de votre antivirus si nécessaire.",
+        "timeout": "La requête a expiré. Le sidecar est peut-être occupé (chiffrement long en cours).",
+        "timeout_hint": "Patientez quelques secondes et réessayez. Sur de gros fichiers, le temps de chiffrement peut dépasser le timeout par défaut."
+      }
     }
   }
 }

@@ -7,6 +7,10 @@ coverage
 .env.*
 !.env.example
 src/routeTree.gen.ts
+# tsc -b composite mode outputs from tsconfig.node.json; regenerated on each build.
+vite.config.js
+vite.config.d.ts
+*.tsbuildinfo
 tests-e2e/.results
 tests-e2e/.report
 playwright-report

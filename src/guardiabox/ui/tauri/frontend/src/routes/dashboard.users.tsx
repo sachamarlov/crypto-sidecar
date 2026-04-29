@@ -1,6 +1,7 @@
 import { SidecarHttpError } from "@/api/client";
 import { useCreateUser, useDeleteUser, useUsers } from "@/api/queries";
 import { PasswordField } from "@/components/PasswordField";
+import { toastSidecarError } from "@/lib/sidecarErrors";
 import { createFileRoute } from "@tanstack/react-router";
 import { Trash2, UserPlus } from "lucide-react";
 import { type FormEvent, useState } from "react";
@@ -39,11 +40,13 @@ function UsersModal(): React.ReactElement {
         onError: (err) => {
           if (err instanceof SidecarHttpError && err.status === 409) {
             toast.error(t("users.duplicate_username"));
-          } else if (err instanceof SidecarHttpError && err.status === 400) {
-            toast.error(t("errors.weak_password"));
-          } else {
-            toast.error(t("errors.network"));
+            return;
           }
+          if (err instanceof SidecarHttpError && err.status === 400) {
+            toast.error(t("errors.weak_password"));
+            return;
+          }
+          toastSidecarError(err, t);
         },
       },
     );
@@ -53,7 +56,7 @@ function UsersModal(): React.ReactElement {
     if (!window.confirm(t("users.delete_confirm_subtitle"))) return;
     deleteMutation.mutate(userId, {
       onSuccess: () => toast.success(t("users.delete_success")),
-      onError: () => toast.error(t("errors.network")),
+      onError: (err) => toastSidecarError(err, t),
     });
   };
 
@@ -113,9 +116,7 @@ function UsersModal(): React.ReactElement {
               >
                 <span className="flex flex-col">
                   <span className="font-medium">{u.username}</span>
-                  <span className="font-mono text-muted-foreground text-xs">
-                    {u.user_id}
-                  </span>
+                  <span className="font-mono text-muted-foreground text-xs">{u.user_id}</span>
                 </span>
                 <button
                   type="button"

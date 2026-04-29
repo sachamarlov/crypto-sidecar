@@ -1,9 +1,10 @@
 import { SidecarHttpError } from "@/api/client";
 import { useDecrypt } from "@/api/queries";
 import { PasswordField } from "@/components/PasswordField";
+import { toastSidecarError } from "@/lib/sidecarErrors";
 import { cn } from "@/lib/utils";
-import { open } from "@tauri-apps/plugin-dialog";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { open } from "@tauri-apps/plugin-dialog";
 import { ShieldAlert } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -22,17 +23,13 @@ function DecryptModal(): React.ReactElement {
   const [password, setPassword] = useState("");
 
   const onPick = async (): Promise<void> => {
-    try {
-      const picked = await open({
-        multiple: false,
-        directory: false,
-        filters: [{ name: "GuardiaBox container", extensions: ["crypt"] }],
-      });
-      if (typeof picked === "string") {
-        setPath(picked);
-      }
-    } catch {
-      /* cancelled */
+    const picked = await open({
+      multiple: false,
+      directory: false,
+      filters: [{ name: "GuardiaBox container", extensions: ["crypt"] }],
+    });
+    if (typeof picked === "string") {
+      setPath(picked);
     }
   };
 
@@ -47,17 +44,41 @@ function DecryptModal(): React.ReactElement {
           void navigate({ to: "/dashboard" });
         },
         onError: (err) => {
-          // Anti-oracle (ADR-0015 / ADR-0016 sec C):
-          // post-KDF failures collapse to the constant toast
-          // string. ShareExpiredError style differentiation does
-          // not apply here (decrypt has no expiry concept).
+          // Anti-oracle (ADR-0015 / ADR-0016 sec C): post-KDF
+          // failures collapse to HTTP 422 + the constant detail
+          // string. The frontend MUST also collapse to a single
+          // i18n toast so the failure mode is byte-identical
+          // wire-side AND user-side.
           if (err instanceof SidecarHttpError && err.status === 422) {
             toast.error(t("decrypt.anti_oracle_failure"));
-          } else if (err instanceof SidecarHttpError) {
-            toast.error(err.detail);
-          } else {
-            toast.error(t("errors.network"));
+            return;
           }
+          // Audit B P0-7 fix: pre-KDF parse failures (InvalidContainer,
+          // UnsupportedVersion, UnknownKdf, WeakKdfParameters,
+          // CorruptedContainer) keep distinct 4xx codes by design --
+          // they carry zero password-side information so anti-oracle
+          // is preserved. We translate by *status*, not by server-
+          // provided detail string, to keep NFR-6 (FR + EN) intact.
+          if (err instanceof SidecarHttpError) {
+            if (err.status === 400) {
+              toast.error(t("decrypt.invalid_container"));
+              return;
+            }
+            if (err.status === 409) {
+              toast.error(t("decrypt.unsupported_version"));
+              return;
+            }
+            if (err.status >= 500) {
+              toast.error(t("errors.sidecar_server"));
+              return;
+            }
+            // Other 4xx: surface unknown_error rather than
+            // err.detail to avoid leaking untranslated server text.
+            toast.error(t("decrypt.unknown_error"));
+            return;
+          }
+          // SidecarUnreachableError + everything else.
+          toastSidecarError(err, t);
         },
       },
     );
