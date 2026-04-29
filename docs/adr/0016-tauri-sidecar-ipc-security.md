@@ -155,10 +155,31 @@ greps the codebase for `"0.0.0.0"` to catch any regression.
 
 ### I. CORS
 
-Disabled. The only legitimate caller is the Tauri shell on the same
-origin via the loopback URL it discovered through the handshake.
-WebView2's CSP already restricts `connect-src` to
-`http://127.0.0.1:* ws://127.0.0.1:*` (cf. `tauri.conf.json`).
+> **Update 2026-04-29 (audit D P0-4)**: The original "Disabled"
+> ruling was technically wrong. Tauri 2 + WebView2 serves React
+> from `tauri.localhost` while the sidecar listens on
+> `http://127.0.0.1:<port>`. Cross-origin is **inherent** to the
+> architecture. Without `CORSMiddleware` configured to allow
+> `http(s)://tauri.localhost`, every fetch from the WebView fails
+> at the preflight. The fix landed in PR #48 (CORSMiddleware
+> added) + PR #49 (middleware order: TokenAuth before CORS so
+> CORS is processed first under FastAPI's LIFO ordering).
+>
+> **Current policy**: a tight CORS allow-list with exactly four
+> origins -- `http://tauri.localhost`, `https://tauri.localhost`,
+> `tauri://localhost`, `http://localhost:1420` (Vite dev). No
+> wildcard. Preflight requests bypass `TokenAuthMiddleware` so
+> the WebView can validate CORS without attaching an auth header
+> (per the Fetch spec). Regression test
+> `tests/integration/test_phase_i_regressions.py::test_cors_preflight_from_tauri_localhost_succeeds`
+> locks the contract.
+
+Original (now superseded) text:
+
+> Disabled. The only legitimate caller is the Tauri shell on the
+> same origin via the loopback URL it discovered through the
+> handshake. WebView2's CSP already restricts `connect-src` to
+> `http://127.0.0.1:* ws://127.0.0.1:*` (cf. `tauri.conf.json`).
 
 ## Decision (summary)
 

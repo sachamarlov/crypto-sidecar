@@ -53,6 +53,7 @@ clean exit code 0.
 from __future__ import annotations
 
 import argparse
+import os
 import platform
 import shutil
 import subprocess  # noqa: S404  # nosec B404 -- subprocess invoked with fixed argv
@@ -161,6 +162,14 @@ def _pyinstaller_cmd(*, output_name: str, release: bool) -> list[str]:
         # build + sidesteps PyInstaller's long-path issues on Windows.
         "--exclude-module",
         "guardiabox.ui.tauri.frontend",
+        # Alembic versions: --collect-submodules bundles them as .pyc
+        # bytecode in the PyInstaller archive, but Alembic scans the
+        # filesystem for .py files at runtime. Without --add-data the
+        # versions/ dir on disk is empty, alembic upgrade is a no-op,
+        # and the user/audit/file tables never get created -- the
+        # /api/v1/users endpoint then fails with "no such table".
+        "--add-data",
+        f"{ROOT / 'src' / 'guardiabox' / 'persistence' / 'migrations' / 'versions'}{os.pathsep}guardiabox/persistence/migrations/versions",
         "--distpath",
         str(TAURI_BINARIES),
         "--workpath",
