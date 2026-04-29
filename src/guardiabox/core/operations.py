@@ -304,7 +304,14 @@ def encrypt_message(
 
     key_buf = bytearray(AES_KEY_BYTES)
     try:
-        derived = kdf_impl.derive(password.encode("utf-8"), header.salt, AES_KEY_BYTES)
+        # Audit A P0-2 / C P1-1: NFC-normalise the password before
+        # encoding so encrypt_message stays byte-identical to
+        # decrypt_message + encrypt_file. Without this, a macOS
+        # NFD password (e + U+0301) and a copy-pasted NFC
+        # password (U+00E9) derive different keys -- silent data
+        # loss on the round-trip. _password_bytes is the shared
+        # helper already used by the file-mode path.
+        derived = kdf_impl.derive(_password_bytes(password), header.salt, AES_KEY_BYTES)
         key_buf[:] = derived
         cipher = AesGcmCipher(bytes(key_buf))
         with atomic_writer(safe_target) as out:

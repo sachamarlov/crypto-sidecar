@@ -25,6 +25,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 import importlib.util
 
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -76,6 +77,22 @@ def create_engine(database_url: str, *, echo: bool = False) -> AsyncEngine:
         future=True,
         pool_pre_ping=True,
     )
+
+    # Audit A P0-4: SQLite ships with PRAGMA foreign_keys = OFF
+    # by default, so the ON DELETE CASCADE / SET NULL clauses
+    # declared on every model never fire. Activate it on every new
+    # connection so the cascade is enforced. The amended audit_log_
+    # no_update trigger (migration 20260429_0001) tolerates the
+    # SET NULL cascade on actor_user_id; every other UPDATE is still
+    # rejected to preserve append-only semantics.
+    @event.listens_for(engine.sync_engine, "connect")
+    def _enable_foreign_keys(dbapi_conn: object, _record: object) -> None:
+        cursor = dbapi_conn.cursor()  # type: ignore[attr-defined]  # DBAPI Connection
+        try:
+            cursor.execute("PRAGMA foreign_keys = ON")
+        finally:
+            cursor.close()
+
     _log.debug(
         "persistence.engine.created",
         driver="aiosqlite",

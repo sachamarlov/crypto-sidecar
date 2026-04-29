@@ -37,6 +37,7 @@ from guardiabox.core.exceptions import (
 )
 from guardiabox.core.operations import decrypt_file
 from guardiabox.logging import get_logger
+from guardiabox.ui.tauri.sidecar.api.rate_limit import BUCKET_WRITE, limiter
 from guardiabox.ui.tauri.sidecar.api.schemas import SidecarBaseModel
 
 __all__ = ["build_decrypt_router"]
@@ -100,12 +101,20 @@ def build_decrypt_router() -> APIRouter:
         response_model=DecryptResponse,
         status_code=status.HTTP_200_OK,
     )
+    @limiter.limit(BUCKET_WRITE)
     def decrypt(
+        request: Request,
         body: DecryptRequest,
-        _settings_dep: Annotated[Settings, Depends(_settings)],
+        settings: Annotated[Settings, Depends(_settings)],
     ) -> DecryptResponse:
+        del request  # consumed by slowapi via signature inspection
+        # Audit C P1-2: see encrypt.py for rationale; same allow-list
+        # (vault data_dir + user home) applied here.
         source = Path(body.path)
         dest_path = Path(body.dest) if body.dest is not None else None
+        allowed_root = _resolve_allowed_root(source, settings)
+        if allowed_root is None:
+            raise HTTPException(status_code=400, detail="path validation failed")
 
         if not source.is_file():
             raise HTTPException(
@@ -118,7 +127,7 @@ def build_decrypt_router() -> APIRouter:
             output = decrypt_file(
                 source,
                 body.password.get_secret_value(),
-                root=source.parent,
+                root=allowed_root,
                 dest=dest_path,
                 force=body.force,
             )
@@ -166,6 +175,27 @@ def build_decrypt_router() -> APIRouter:
         )
 
     return router
+
+
+def _resolve_allowed_root(source: Path, settings: Settings) -> Path | None:
+    """Return the first allowed ancestor of ``source``, or None on rejection.
+
+    Audit C P1-2 mitigation: shared allow-list policy with encrypt.py
+    (vault data_dir + user home). Refer to that module's helper for
+    the full rationale.
+    """
+    try:
+        resolved_source = source.resolve(strict=False)
+    except (OSError, RuntimeError):
+        return None
+    for root in (settings.data_dir.resolve(), Path.home().resolve()):
+        try:
+            resolved_source.relative_to(root)
+        except ValueError:
+            continue
+        else:
+            return root
+    return None
 
 
 def _read_kdf_id_from_header(crypt_path: Path) -> int:

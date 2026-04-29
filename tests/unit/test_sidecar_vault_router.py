@@ -138,6 +138,9 @@ def test_unlock_requires_token(tmp_path: Path) -> None:
 
 
 def test_lock_drops_an_active_session(client: TestClient, tmp_path: Path) -> None:
+    # Audit A P0-3: /vault/lock now requires X-GuardiaBox-Session,
+    # not a session_id in the body. The session id never leaves the
+    # header; impossible to force-close another user's session.
     _seed_vault(tmp_path)
     unlock_resp = client.post(
         "/api/v1/vault/unlock",
@@ -147,7 +150,7 @@ def test_lock_drops_an_active_session(client: TestClient, tmp_path: Path) -> Non
 
     lock_resp = client.post(
         "/api/v1/vault/lock",
-        json={"session_id": session_id},
+        headers={"X-GuardiaBox-Session": session_id},
     )
 
     assert lock_resp.status_code == 204
@@ -156,12 +159,20 @@ def test_lock_drops_an_active_session(client: TestClient, tmp_path: Path) -> Non
     assert status_resp.json()["active_sessions"] == 0
 
 
-def test_lock_unknown_session_is_idempotent(client: TestClient) -> None:
+def test_lock_unknown_session_returns_401(client: TestClient) -> None:
+    # Audit A P0-3: previously /lock accepted any body session_id and
+    # 204'd silently. Now an unknown session header returns 401, the
+    # same as every other require_session-protected endpoint.
     response = client.post(
         "/api/v1/vault/lock",
-        json={"session_id": "ghost"},
+        headers={"X-GuardiaBox-Session": "ghost"},
     )
-    assert response.status_code == 204
+    assert response.status_code == 401
+
+
+def test_lock_without_session_header_returns_401(client: TestClient) -> None:
+    response = client.post("/api/v1/vault/lock")
+    assert response.status_code == 401
 
 
 # ---------------------------------------------------------------------------

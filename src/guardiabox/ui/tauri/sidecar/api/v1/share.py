@@ -28,7 +28,7 @@ from pathlib import Path
 from typing import Annotated
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import Field, SecretStr
 
 from guardiabox.config import Settings
@@ -51,6 +51,7 @@ from guardiabox.ui.tauri.sidecar.api.dependencies import (
     require_session,
     settings_dep,
 )
+from guardiabox.ui.tauri.sidecar.api.rate_limit import BUCKET_WRITE, limiter
 from guardiabox.ui.tauri.sidecar.api.schemas import SidecarBaseModel
 from guardiabox.ui.tauri.sidecar.state import VaultSession
 
@@ -118,11 +119,14 @@ def build_share_router() -> APIRouter:  # noqa: PLR0915 -- two routers + DB + au
     router = APIRouter(prefix="/api/v1", tags=["share"])
 
     @router.post("/share", response_model=ShareResponse, status_code=status.HTTP_200_OK)
+    @limiter.limit(BUCKET_WRITE)
     async def share(
+        request: Request,
         body: ShareRequest,
         settings: Annotated[Settings, Depends(settings_dep)],
         session: Annotated[VaultSession, Depends(require_session)],
     ) -> ShareResponse:
+        del request  # consumed by slowapi via signature inspection
         async with open_db_session(settings) as db:
             repo = UserRepository(db, bytes(session.admin_key))
             users = await repo.list_all()
@@ -191,11 +195,14 @@ def build_share_router() -> APIRouter:  # noqa: PLR0915 -- two routers + DB + au
         )
 
     @router.post("/accept", response_model=AcceptResponse, status_code=status.HTTP_200_OK)
+    @limiter.limit(BUCKET_WRITE)
     async def accept(
+        request: Request,
         body: AcceptRequest,
         settings: Annotated[Settings, Depends(settings_dep)],
         session: Annotated[VaultSession, Depends(require_session)],
     ) -> AcceptResponse:
+        del request  # consumed by slowapi via signature inspection
         async with open_db_session(settings) as db:
             repo = UserRepository(db, bytes(session.admin_key))
             users = await repo.list_all()
