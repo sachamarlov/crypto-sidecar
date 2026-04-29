@@ -7,6 +7,7 @@ import { toastSidecarError } from "@/lib/sidecarErrors";
 import { cn } from "@/lib/utils";
 import { useLanguageStore } from "@/stores/language";
 import { activeUserIdAtom, expiresAtMsAtom, sessionIdAtom } from "@/stores/lock";
+import { useQueryClient } from "@tanstack/react-query";
 import { Link, Outlet, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useAtom, useAtomValue } from "jotai";
 import {
@@ -48,15 +49,23 @@ function DashboardChrome(): React.ReactElement {
   const usersQuery = useUsers();
   const lockMutation = useLock();
 
-  const onLock = (): void => {
+  const queryClient = useQueryClient();
+
+  const onLock = async (): Promise<void> => {
+    // Audit B P1-5 / B P1-6 / δ-5 / δ-6: clear the TanStack Query
+    // cache so a subsequent unlock by another user does not see
+    // stale users/audit lists from the previous session. Await
+    // the lockMutation BEFORE clearing local state so a fast
+    // re-unlock cannot race the lock POST and have it kill the
+    // freshly-established new session on the server.
     if (sessionId !== null) {
-      lockMutation.mutate(
-        { session_id: sessionId },
-        {
-          onError: (err) => toastSidecarError(err, t),
-        },
-      );
+      try {
+        await lockMutation.mutateAsync({ session_id: sessionId });
+      } catch (err) {
+        toastSidecarError(err, t);
+      }
     }
+    queryClient.clear();
     setSessionId(null);
     setExpiresAt(null);
     void navigate({ to: "/lock" });
@@ -134,7 +143,7 @@ function DashboardChrome(): React.ReactElement {
           </button>
           <button
             type="button"
-            onClick={onLock}
+            onClick={() => void onLock()}
             className={cn(
               "rounded-md border border-destructive/40 bg-destructive/10 px-3 py-1.5 text-destructive text-xs font-medium",
               "hover:bg-destructive/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive",

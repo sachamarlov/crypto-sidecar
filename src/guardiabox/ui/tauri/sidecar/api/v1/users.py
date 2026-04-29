@@ -113,19 +113,22 @@ def build_users_router() -> APIRouter:
         settings: Annotated[Settings, Depends(settings_dep)],
         session: Annotated[VaultSession, Depends(require_session)],
     ) -> UserView:
-        # Strength assertion happens inside keystore.create too, but
-        # surface a friendly 400 if it fails before we spend KDF time.
-        try:
-            new_keystore = keystore.create(body.password.get_secret_value())
-        except WeakPasswordError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-
+        # Audit A P1-6: previously keystore.create (PBKDF2 600k or
+        # Argon2id 64MiB ~= 250-500ms) ran BEFORE the uniqueness
+        # check, so spamming /users with an existing username
+        # burned KDF cycles per request -- a DoS amplifier. Now the
+        # username check happens first; KDF only runs after we know
+        # the row will fit.
         user_id = str(uuid.uuid4())
         async with open_db_session(settings) as db:
             repo = UserRepository(db, bytes(session.admin_key))
             existing = await repo.get_by_username(body.username)
             if existing is not None:
                 raise HTTPException(status_code=409, detail="username already taken")
+            try:
+                new_keystore = keystore.create(body.password.get_secret_value())
+            except WeakPasswordError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
             user = await repo.create(
                 user_id=user_id,
                 username=body.username,
