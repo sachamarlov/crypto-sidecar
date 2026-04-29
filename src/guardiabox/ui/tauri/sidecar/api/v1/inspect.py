@@ -12,18 +12,24 @@ read or written through the persistence layer).
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import Field
 
+from guardiabox.config import Settings
 from guardiabox.core.exceptions import (
     CorruptedContainerError,
     InvalidContainerError,
+    PathTraversalError,
+    SymlinkEscapeError,
     UnknownKdfError,
     UnsupportedVersionError,
     WeakKdfParametersError,
 )
 from guardiabox.core.operations import inspect_container
+from guardiabox.fileio.safe_path import resolve_within
+from guardiabox.ui.tauri.sidecar.api.dependencies import settings_dep
 from guardiabox.ui.tauri.sidecar.api.schemas import SidecarBaseModel
 
 __all__ = ["build_inspect_router"]
@@ -54,8 +60,18 @@ def build_inspect_router() -> APIRouter:
         response_model=InspectResponse,
         status_code=status.HTTP_200_OK,
     )
-    def inspect(body: InspectRequest) -> InspectResponse:
-        source = Path(body.path)
+    def inspect(
+        body: InspectRequest,
+        settings: Annotated[Settings, Depends(settings_dep)],
+    ) -> InspectResponse:
+        # Audit A P2-4 / ε-38: constrain inspect to the vault data_dir
+        # so a frontend XSS cannot enumerate arbitrary .crypt headers
+        # on disk (header is public per ADR-0014, but salt + base
+        # nonce help offline brute-force targeting).
+        try:
+            source = resolve_within(Path(body.path), settings.data_dir)
+        except (PathTraversalError, SymlinkEscapeError) as exc:
+            raise HTTPException(status_code=400, detail="path validation failed") from exc
         if not source.is_file():
             raise HTTPException(status_code=404, detail=f"file not found: {source}")
         try:

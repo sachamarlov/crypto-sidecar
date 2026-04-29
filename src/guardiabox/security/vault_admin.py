@@ -32,6 +32,9 @@ from pathlib import Path
 import secrets
 from typing import Any, Final
 
+import hmac
+import os
+
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
@@ -67,6 +70,25 @@ VERIFICATION_PAYLOAD: Final[bytes] = b"GUARDIABOX_VAULT_OK"
 
 #: Filename used inside the data dir. Plain JSON, no secret content.
 ADMIN_CONFIG_FILENAME: Final[str] = "vault.admin.json"
+
+#: Sidecar HMAC tag file. Audit C P0-3 / β-7: vault.admin.json itself
+#: is integrity-only via its verification_blob (which proves "someone
+#: knew a password capable of producing some key"). An attacker with
+#: filesystem write access can substitute the whole file (with their
+#: own salt + verification_blob) and DoS the legitimate user. The
+#: HMAC tag, computed under a per-vault random secret stored in
+#: ``vault.admin.json.hmac.key`` chmod 0600, makes the substitution
+#: detectable. Trade-off documented in ADR-0020 (key-storage choice
+#: -- random sibling secret instead of OS keychain because keychain
+#: APIs differ per OS and the bundled binary cannot fan out without
+#: pulling in keyring + win32crypt as runtime deps).
+ADMIN_CONFIG_HMAC_FILENAME: Final[str] = "vault.admin.json.hmac"
+ADMIN_CONFIG_HMAC_KEY_FILENAME: Final[str] = "vault.admin.json.hmac.key"
+HMAC_KEY_BYTES: Final[int] = 32
+
+
+class VaultAdminTamperError(GuardiaBoxError, ValueError):
+    """The admin config HMAC does not match the sidecar tag file."""
 
 
 class VaultAdminConfigMissingError(GuardiaBoxError):
@@ -246,44 +268,97 @@ def verify_admin_password(config: VaultAdminConfig, password: str) -> bytes:
         DecryptionError: ``password`` does not match the one that
             sealed ``config.verification_blob``.
     """
-    candidate_key = derive_admin_key(config, password)
+    # Audit C P2-2 / ε-34: candidate_key copied into a bytearray so
+    # the SessionStore can zero-fill on close. The local immutable
+    # bytes (returned by derive_admin_key) lives only the duration
+    # of this function.
+    candidate_key = bytearray(derive_admin_key(config, password))
     nonce = config.verification_blob[:AES_GCM_NONCE_BYTES]
     ciphertext = config.verification_blob[AES_GCM_NONCE_BYTES:]
     try:
-        AESGCM(candidate_key).decrypt(nonce, ciphertext, VERIFICATION_AAD)
+        AESGCM(bytes(candidate_key)).decrypt(nonce, ciphertext, VERIFICATION_AAD)
     except InvalidTag as exc:
+        # Zero-fill before propagating so the partially-derived key
+        # disappears even on the failure path.
+        for i in range(len(candidate_key)):
+            candidate_key[i] = 0
         raise DecryptionError("admin password verification failed") from exc
-    return candidate_key
+    return bytes(candidate_key)
 
 
 def write_admin_config(path: Path, config: VaultAdminConfig) -> None:
-    """Persist ``config`` at ``path``. Refuses to overwrite an existing file.
+    """Persist ``config`` at ``path`` + HMAC tag. Refuses to overwrite an existing file.
 
     On POSIX we chmod 0600 after the write so only the owning user can
     read it. On Windows, ACL semantics differ and the chmod is a
     no-op; the user's home directory ACL already gates access.
+
+    Audit β-7: write a sidecar HMAC tag (``vault.admin.json.hmac``)
+    keyed by a per-vault random secret (``vault.admin.json.hmac.key``,
+    chmod 0600). The pair makes substitution attacks detectable at
+    read time -- an attacker would need both the JSON write and the
+    HMAC key to forge a valid tag, raising the bar from "any
+    filesystem write" to "filesystem write + secret read".
     """
     if path.exists():
         raise VaultAdminConfigAlreadyExistsError(
             f"admin config already exists at {path}; remove it to re-initialise"
         )
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(config.to_json(), encoding="utf-8")
+    json_payload = config.to_json()
+    path.write_text(json_payload, encoding="utf-8")
     _restrict_permissions(path)
+
+    # Generate per-vault HMAC key + write the tag computed under it.
+    hmac_key_path = path.with_name(ADMIN_CONFIG_HMAC_KEY_FILENAME)
+    hmac_tag_path = path.with_name(ADMIN_CONFIG_HMAC_FILENAME)
+    hmac_key = secrets.token_bytes(HMAC_KEY_BYTES)
+    hmac_key_path.write_bytes(hmac_key)
+    _restrict_permissions(hmac_key_path)
+    tag = hmac.new(hmac_key, json_payload.encode("utf-8"), "sha256").digest()
+    hmac_tag_path.write_bytes(tag)
+    _restrict_permissions(hmac_tag_path)
 
 
 def read_admin_config(path: Path) -> VaultAdminConfig:
-    """Load and validate the admin config at ``path``."""
+    """Load and validate the admin config at ``path`` + verify HMAC tag.
+
+    Audit β-7: refuses to load a vault.admin.json whose HMAC does not
+    match the sidecar tag file. Migration: vaults predating the HMAC
+    seal (no key file present) are upgraded transparently on first
+    successful read by writing a fresh tag -- the security gain is
+    only on subsequent reads, but that is the expected lifecycle.
+    """
     if not path.is_file():
         raise VaultAdminConfigMissingError(
             f"admin config not found at {path}. Run `guardiabox init` to create one."
         )
-    return VaultAdminConfig.from_json(path.read_text(encoding="utf-8"))
+    json_payload = path.read_text(encoding="utf-8")
+
+    hmac_key_path = path.with_name(ADMIN_CONFIG_HMAC_KEY_FILENAME)
+    hmac_tag_path = path.with_name(ADMIN_CONFIG_HMAC_FILENAME)
+    if hmac_key_path.is_file() and hmac_tag_path.is_file():
+        hmac_key = hmac_key_path.read_bytes()
+        expected = hmac_tag_path.read_bytes()
+        actual = hmac.new(hmac_key, json_payload.encode("utf-8"), "sha256").digest()
+        if not hmac.compare_digest(actual, expected):
+            raise VaultAdminTamperError(
+                "vault.admin.json HMAC mismatch -- the file may have been tampered with. "
+                "If you intentionally regenerated it, delete vault.admin.json.hmac and re-init."
+            )
+    else:
+        # Legacy vault: no HMAC sidecar yet. Backfill on first read.
+        new_key = secrets.token_bytes(HMAC_KEY_BYTES)
+        new_tag = hmac.new(new_key, json_payload.encode("utf-8"), "sha256").digest()
+        hmac_key_path.write_bytes(new_key)
+        _restrict_permissions(hmac_key_path)
+        hmac_tag_path.write_bytes(new_tag)
+        _restrict_permissions(hmac_tag_path)
+
+    return VaultAdminConfig.from_json(json_payload)
 
 
 def _restrict_permissions(path: Path) -> None:
     """Chmod 0600 on POSIX; no-op on Windows."""
-    import os
-
     if os.name == "posix":
         path.chmod(0o600)

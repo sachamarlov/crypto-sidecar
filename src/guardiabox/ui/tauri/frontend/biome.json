@@ -43,7 +43,7 @@
       },
       "correctness": {
         "noUndeclaredVariables": "error",
-        "noUnusedVariables": "warn",
+        "noUnusedVariables": "error",
         "useExhaustiveDependencies": "warn"
       },
       "style": {
@@ -53,8 +53,8 @@
         "useNodejsImportProtocol": "error"
       },
       "suspicious": {
-        "noExplicitAny": "warn",
-        "noConsoleLog": "warn",
+        "noExplicitAny": "error",
+        "noConsoleLog": "error",
         "noEmptyBlockStatements": "error"
       },
       "a11y": {

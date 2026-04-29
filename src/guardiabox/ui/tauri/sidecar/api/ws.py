@@ -69,7 +69,14 @@ def build_ws_router() -> APIRouter:
             return
 
         await websocket.accept()
-        _log.info("stream.accepted", session=session[:8] + "...")
+        # Audit A P2-2 / ε-36: previously logged session[:8]+"..." which
+        # exposes 6 url-safe octets (~36 bits) of the 256-bit token in
+        # cleartext logs. SHA-256 + truncate yields a stable hint for
+        # correlation across log lines without leaking session entropy.
+        import hashlib  # noqa: PLC0415
+
+        session_hint = hashlib.sha256(session.encode("utf-8")).hexdigest()[:8]
+        _log.info("stream.accepted", session_hint=session_hint)
 
         hub: StreamHub = websocket.app.state.stream_hub
         try:
