@@ -108,35 +108,6 @@ def create_app(
         redoc_url=None,
         openapi_url="/openapi.json",
     )
-    # CORS: the Tauri 2 WebView serves the frontend from the
-    # `http(s)://tauri.localhost` custom protocol while the sidecar
-    # listens on `http://127.0.0.1:<random>` -- these are *different
-    # origins*, so the browser issues a CORS preflight on every
-    # non-simple fetch. ADR-0016 sec I assumed same-origin, which is
-    # false in Tauri 2 + WebView2; without these headers, every API
-    # call from the lock screen onwards fails with "failed to fetch".
-    #
-    # Authentication is still gated by the per-launch token in the
-    # X-GuardiaBox-Token header (TokenAuthMiddleware). CORS only
-    # decides which *origins* may issue the preflight; the token
-    # decides which *requests* are honoured. Bind-address remains
-    # 127.0.0.1-only (NFR + Bind-address security test).
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=[
-            "http://tauri.localhost",
-            "https://tauri.localhost",
-            "tauri://localhost",
-            "http://localhost:1420",  # Vite dev server
-        ],
-        allow_credentials=False,  # token is a header, no cookies -- ADR-0016
-        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        allow_headers=[
-            "Content-Type",
-            "X-GuardiaBox-Token",
-            "X-GuardiaBox-Session",
-        ],
-    )
     app.state.session_token = session_token
     app.state.settings = resolved_settings
     # SessionStore TTL = auto_lock_minutes (cf. ADR-0016 sec B).
@@ -157,6 +128,36 @@ def create_app(
     # carry X-GuardiaBox-Token. /healthz, /readyz, /version, and
     # /openapi.json are whitelisted -- see AUTH_EXEMPT_PATHS.
     app.add_middleware(TokenAuthMiddleware)
+
+    # CORS middleware (must be added AFTER TokenAuth so it runs
+    # FIRST -- FastAPI middleware order is LIFO). The Tauri 2 WebView
+    # serves React from `http(s)://tauri.localhost` while the sidecar
+    # listens on `http://127.0.0.1:<random>`: cross-origin, so the
+    # browser issues a CORS preflight (OPTIONS) on every non-simple
+    # fetch. The preflight carries no auth headers (browsers strip
+    # them); without this middleware running first, TokenAuth would
+    # reject the OPTIONS and the real request never gets sent.
+    #
+    # Token auth remains the real security gate: CORS only decides
+    # which *origins* may issue the preflight; the token decides
+    # which *requests* are honoured. Bind-address stays 127.0.0.1-only
+    # (security test unaffected). ADR-0016 sec I amended.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[
+            "http://tauri.localhost",
+            "https://tauri.localhost",
+            "tauri://localhost",
+            "http://localhost:1420",  # Vite dev server
+        ],
+        allow_credentials=False,  # token rides in a custom header, not cookies
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allow_headers=[
+            "Content-Type",
+            "X-GuardiaBox-Token",
+            "X-GuardiaBox-Session",
+        ],
+    )
 
     # Health endpoints (G-09) are exempt from auth; they ship in G-01
     # because the sidecar boot smoke test needs a route to hit before
