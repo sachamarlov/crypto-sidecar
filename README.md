@@ -33,13 +33,14 @@ L'architecture repose sur les bonnes pratiques cryptographiques modernes 2026 :
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                guardiabox.exe (≈ 15 MB, Windows)                │
+│         GuardiaBox.exe (~6 MiB shell + 41 MiB sidecar,          │
+│         packaged into a 45.7 MiB NSIS installer on Windows)     │
 │                                                                 │
 │  ┌──────────────────────┐      ┌────────────────────────────┐   │
 │  │  Tauri 2 shell (Rust)│      │  Frontend bundle (Vite/    │   │
-│  │  • WebView2 native   │◄────►│  React 19/shadcn/Framer)   │   │
-│  │  • Frameless window  │ IPC  │  • UI moderne 60fps        │   │
-│  │  • Tray + shortcuts  │      │  • Glassmorphism + WebGL   │   │
+│  │  • WebView2 native   │◄────►│  React 19/Tailwind v4)     │   │
+│  │  • Frameless window  │ IPC  │  • Frameless + drag region │   │
+│  │  • Custom controls   │      │  • i18n FR + EN, WCAG 2.2  │   │
 │  └──────────┬───────────┘      └────────────────────────────┘   │
 │             │                                                   │
 │             │ spawn + HTTP loopback (127.0.0.1:random_port)     │
@@ -47,11 +48,16 @@ L'architecture repose sur les bonnes pratiques cryptographiques modernes 2026 :
 │  ┌──────────────────────────────────────────────────────────┐   │
 │  │  Python sidecar (FastAPI, bundled by PyInstaller)        │   │
 │  │  • cryptography, argon2-cffi, zxcvbn-python              │   │
-│  │  • SQLAlchemy 2.0 + SQLCipher                            │   │
+│  │  • SQLAlchemy 2.0 async + aiosqlite + Alembic            │   │
+│  │  • Column-level AES-GCM (ADR-0019, no SQLCipher)         │   │
 │  │  • Hexagonal architecture: core ← adapters               │   │
 │  └──────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+Real-world bundle sizes are tracked in
+[`docs/NFR_VERIFICATION.md`](docs/NFR_VERIFICATION.md); the figures
+above reflect the most recent Phase I measurement.
 
 Trois interfaces utilisateur partagent le même cœur Python :
 
