@@ -10,6 +10,25 @@ This file is automatically maintained by
 Direct edits should be limited to fixing typos and syncing "Unreleased" with
 what is actually merged on `main`.
 
+## [0.2.0](https://github.com/sachamarlov/crypto-sidecar/compare/v0.1.0...v0.2.0) (2026-04-29)
+
+
+### Features
+
+* **audit-α:** close 8 product-visible P0 findings ([#50](https://github.com/sachamarlov/crypto-sidecar/issues/50)) ([5e74b75](https://github.com/sachamarlov/crypto-sidecar/commit/5e74b753e523decfe9f03f9e75a075deeadf0f08))
+* **audit:** close 25 P0/P1/P2 polish + security findings ([#56](https://github.com/sachamarlov/crypto-sidecar/issues/56)) ([b18981f](https://github.com/sachamarlov/crypto-sidecar/commit/b18981ff677740c595de489953ce6cf24910bac8))
+* **ci:** close Phase gamma -- anti-regression + docs sync ([#52](https://github.com/sachamarlov/crypto-sidecar/issues/52)) ([af15795](https://github.com/sachamarlov/crypto-sidecar/commit/af15795bd36b7fbbb4a0917d77a38dd5811ea218))
+* **security+ux:** close Phase delta -- 8 P1 critical findings ([#54](https://github.com/sachamarlov/crypto-sidecar/issues/54)) ([728e777](https://github.com/sachamarlov/crypto-sidecar/commit/728e777c4981ea46127bcdb4b234a74958744ba4))
+* **security:** close Phase beta -- 7 P0/P1 sidecar findings ([#51](https://github.com/sachamarlov/crypto-sidecar/issues/51)) ([190c668](https://github.com/sachamarlov/crypto-sidecar/commit/190c6683d8ff15236a5b0fde8a8725c78b18a3ff))
+
+
+### Bug Fixes
+
+* move app.add_middleware(CORSMiddleware, ...) AFTER app.add_middleware(TokenAuthMiddleware) so CORS becomes the outermost layer and intercepts OPTIONS preflights before TokenAuth ever sees them. ([1d590a7](https://github.com/sachamarlov/crypto-sidecar/commit/1d590a7cb7c6273656a453b9b6a175ec4b0b2ae3))
+* **phase-i:** add CORS middleware so Tauri WebView can call sidecar ([#48](https://github.com/sachamarlov/crypto-sidecar/issues/48)) ([2a8b79b](https://github.com/sachamarlov/crypto-sidecar/commit/2a8b79b10e5bb25094bf86d625de4ff58360facb))
+* **phase-i:** add CORSMiddleware AFTER TokenAuth so it runs FIRST ([#49](https://github.com/sachamarlov/crypto-sidecar/issues/49)) ([1d590a7](https://github.com/sachamarlov/crypto-sidecar/commit/1d590a7cb7c6273656a453b9b6a175ec4b0b2ae3))
+* **phase-i:** pass CREATE_NO_WINDOW to sidecar spawn (no stray cmd) ([#47](https://github.com/sachamarlov/crypto-sidecar/issues/47)) ([ce8734f](https://github.com/sachamarlov/crypto-sidecar/commit/ce8734f494a896d334836f5690d28ec4ddc622ec))
+
 ## [Unreleased]
 
 ### Added (Phase I -- Build & distribution finale)
