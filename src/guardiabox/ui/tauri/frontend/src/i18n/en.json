@@ -19,14 +19,29 @@
       "yes": "Yes",
       "no": "No",
       "language": "Language",
-      "theme": "Theme"
+      "theme": "Theme",
+      "retry": "Retry"
+    },
+    "window": {
+      "controls_label": "Window controls",
+      "minimize": "Minimize window",
+      "maximize": "Maximize / restore window",
+      "close": "Close window"
     },
     "password": {
       "placeholder": "Password",
       "aria_label": "Password input (masked)",
       "hint_empty": "Enter a password",
       "confirm_placeholder": "Confirm password",
-      "min_length": "Minimum length: 12 characters"
+      "confirm_mismatch": "Passwords do not match.",
+      "min_length": "Minimum length: 12 characters",
+      "strength": {
+        "0": "Very weak",
+        "1": "Weak",
+        "2": "Fair",
+        "3": "Good",
+        "4": "Excellent"
+      }
     },
     "lock": {
       "title": "Vault locked",
@@ -37,12 +52,16 @@
       "init_subtitle": "Pick a strong administrator password. It cannot be recovered.",
       "init_kdf_label": "Key derivation function",
       "init_submit": "Create vault",
+      "init_acknowledgement": "I understand this password cannot be recovered. Losing the password means losing the vault permanently.",
       "auth_failure_constant": "Wrong administrator password or vault not initialised.",
-      "init_success": "Vault initialised. You can now unlock it."
+      "init_success": "Vault initialised. You can now unlock it.",
+      "booting_sidecar": "Starting the local sidecar…",
+      "sidecar_unreachable_title": "Local sidecar unreachable"
     },
     "dashboard": {
       "title": "Dashboard",
       "users_section": "Local users",
+      "auto_lock_aria": "Auto-lock in {{time}}",
       "actions": {
         "encrypt": "Encrypt a file",
         "decrypt": "Decrypt a file",
@@ -67,6 +86,7 @@
       "kdf_argon2id": "Argon2id (m=64 MiB, t=3, p=1, OWASP 2026 recommendation)",
       "submit": "Encrypt",
       "success": "File encrypted: {{path}}",
+      "dropped": "File dropped: {{path}}",
       "error_path_required": "File path is required."
     },
     "decrypt": {
@@ -76,7 +96,10 @@
       "submit": "Decrypt",
       "success": "File decrypted: {{path}}",
       "anti_oracle_failure": "Decryption failed. Wrong password or tampered container.",
-      "info_anti_oracle": "The error message is intentionally uniform to prevent any decryption oracle."
+      "info_anti_oracle": "The error message is intentionally uniform to prevent any decryption oracle.",
+      "invalid_container": "Invalid container. The file is not a valid .crypt.",
+      "unsupported_version": "Unsupported container version. The file may come from a newer build.",
+      "unknown_error": "Unknown error during decryption."
     },
     "share": {
       "title": "Share a .crypt",
@@ -143,9 +166,20 @@
     },
     "errors": {
       "session_required": "Invalid session. Please reconnect to the vault.",
+      "session_expired": "Session expired. Please reconnect to the vault.",
       "rate_limited": "Too many attempts. Wait before retrying.",
       "network": "Network error. Is the local sidecar running?",
-      "weak_password": "Password too weak (minimum 12 characters + zxcvbn score ≥ 3)."
+      "sidecar_server": "The sidecar hit an internal error. Check the logs and restart GuardiaBox if the issue persists.",
+      "unknown": "Unexpected error. Retry or restart GuardiaBox.",
+      "weak_password": "Password too weak (minimum 12 characters + zxcvbn score ≥ 3).",
+      "sidecar": {
+        "handshake": "The local sidecar did not respond within 10 seconds.",
+        "handshake_hint": "Restart GuardiaBox. If the issue persists, check %TEMP%/guardiabox-sidecar.log (with GUARDIABOX_DEBUG_LOG=1 set).",
+        "fetch": "Lost connection to the sidecar. Was the process killed or blocked by antivirus?",
+        "fetch_hint": "Verify GuardiaBox.exe is running in Task Manager. Whitelist it in your antivirus if needed.",
+        "timeout": "The request timed out. The sidecar may be busy (long encryption in progress).",
+        "timeout_hint": "Wait a few seconds and retry. Large files may exceed the default request timeout."
+      }
     }
   }
 }

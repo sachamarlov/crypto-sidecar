@@ -12,23 +12,22 @@
  * sidecar's `ErrorBody`. The decrypt + accept toasts in the
  * UI layer rely on this string being constant on every post-KDF
  * failure -- the client must not paraphrase it.
+ *
+ * Error taxonomy (audit B P0-2): two distinct classes surface --
+ * `SidecarHttpError` for non-2xx HTTP responses, and
+ * `SidecarUnreachableError` for handshake / fetch / timeout
+ * failures (port closed, AV blocked, sidecar crashed, abort). Both
+ * live in `./errors` to break the circular import with sidecar.ts.
  */
 
-import { getDefaultStore } from "jotai";
 import { sessionIdAtom } from "@/stores/lock";
+import { getDefaultStore } from "jotai";
+import { SidecarHttpError, SidecarUnreachableError } from "./errors";
 import { baseUrl, getSidecarConnection } from "./sidecar";
 import type { ErrorBody } from "./types";
 
-export class SidecarHttpError extends Error {
-  public readonly status: number;
-  public readonly detail: string;
-
-  constructor(status: number, detail: string) {
-    super(`sidecar HTTP ${status}: ${detail}`);
-    this.status = status;
-    this.detail = detail;
-  }
-}
+// Re-export so existing call sites keep working without churn.
+export { SidecarHttpError, SidecarUnreachableError } from "./errors";
 
 interface RequestInitWithBody extends Omit<RequestInit, "body" | "headers"> {
   body?: unknown;
@@ -61,7 +60,23 @@ async function request<T>(path: string, init: RequestInitWithBody = {}): Promise
   if (rawBody !== undefined) {
     fetchInit.body = JSON.stringify(rawBody);
   }
-  const response = await fetch(url, fetchInit);
+  let response: Response;
+  try {
+    response = await fetch(url, fetchInit);
+  } catch (err) {
+    // Native fetch throws on network failures (port closed, AV
+    // blocking, ECONNREFUSED) as `TypeError: Failed to fetch`.
+    // AbortError surfaces when the caller passes an AbortSignal.
+    // Both collapse to SidecarUnreachableError so the UI helper
+    // can dispatch a typed toast instead of "Failed to fetch".
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw new SidecarUnreachableError("timeout");
+    }
+    if (err instanceof TypeError) {
+      throw new SidecarUnreachableError("fetch");
+    }
+    throw err;
+  }
   if (response.status === 204) {
     return undefined as T;
   }

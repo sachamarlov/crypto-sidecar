@@ -1,10 +1,10 @@
-import { SidecarHttpError } from "@/api/client";
 import { useShare, useUsers } from "@/api/queries";
 import { PasswordField } from "@/components/PasswordField";
-import { activeUserIdAtom } from "@/stores/lock";
+import { toastSidecarError } from "@/lib/sidecarErrors";
 import { cn } from "@/lib/utils";
-import { open, save } from "@tauri-apps/plugin-dialog";
+import { activeUserIdAtom } from "@/stores/lock";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { open, save } from "@tauri-apps/plugin-dialog";
 import { useAtomValue } from "jotai";
 import { ShieldAlert } from "lucide-react";
 import { type FormEvent, useState } from "react";
@@ -31,8 +31,7 @@ function ShareModal(): React.ReactElement {
   const [expiresDays, setExpiresDays] = useState(0);
   const [password, setPassword] = useState("");
 
-  const otherUsers =
-    usersQuery.data?.users.filter((u) => u.user_id !== activeUserId) ?? [];
+  const otherUsers = usersQuery.data?.users.filter((u) => u.user_id !== activeUserId) ?? [];
 
   const onPickSource = async (): Promise<void> => {
     const picked = await open({
@@ -83,10 +82,7 @@ function ShareModal(): React.ReactElement {
           setPassword("");
           void navigate({ to: "/dashboard" });
         },
-        onError: (err) => {
-          if (err instanceof SidecarHttpError) toast.error(err.detail);
-          else toast.error(t("errors.network"));
-        },
+        onError: (err) => toastSidecarError(err, t),
       },
     );
   };

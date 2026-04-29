@@ -1,9 +1,10 @@
 import { SidecarHttpError } from "@/api/client";
 import { useAccept, useUsers } from "@/api/queries";
 import { PasswordField } from "@/components/PasswordField";
+import { toastSidecarError } from "@/lib/sidecarErrors";
 import { activeUserIdAtom } from "@/stores/lock";
-import { open, save } from "@tauri-apps/plugin-dialog";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { open, save } from "@tauri-apps/plugin-dialog";
 import { useAtomValue } from "jotai";
 import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -25,8 +26,7 @@ function AcceptModal(): React.ReactElement {
   const [senderId, setSenderId] = useState("");
   const [password, setPassword] = useState("");
 
-  const otherUsers =
-    usersQuery.data?.users.filter((u) => u.user_id !== activeUserId) ?? [];
+  const otherUsers = usersQuery.data?.users.filter((u) => u.user_id !== activeUserId) ?? [];
 
   const onPickToken = async (): Promise<void> => {
     const picked = await open({
@@ -75,11 +75,11 @@ function AcceptModal(): React.ReactElement {
             } else {
               toast.error(t("accept.anti_oracle_failure"));
             }
-          } else if (err instanceof SidecarHttpError) {
-            toast.error(err.detail);
-          } else {
-            toast.error(t("errors.network"));
+            return;
           }
+          // Pre-KDF parse failures (400/409) and unreachable errors
+          // route through the central typed-toast helper.
+          toastSidecarError(err, t);
         },
       },
     );

@@ -1,11 +1,12 @@
-import { SidecarHttpError } from "@/api/client";
 import { useEncrypt } from "@/api/queries";
 import type { Kdf } from "@/api/types";
 import { PasswordField } from "@/components/PasswordField";
+import { toastSidecarError } from "@/lib/sidecarErrors";
 import { cn } from "@/lib/utils";
-import { open } from "@tauri-apps/plugin-dialog";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { type FormEvent, useState } from "react";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { open } from "@tauri-apps/plugin-dialog";
+import { type FormEvent, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
@@ -23,14 +24,38 @@ function EncryptModal(): React.ReactElement {
   const [confirm, setConfirm] = useState("");
   const [kdf, setKdf] = useState<Kdf>("pbkdf2");
 
+  // Audit E P0-6: tauri.conf.json sets dragDropEnabled but no React
+  // listener wires the event. Subscribe to onDragDropEvent and
+  // populate `path` on the first dropped file. The cleanup unhooks
+  // the listener on unmount so navigating away does not leak it.
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    void getCurrentWebview()
+      .onDragDropEvent((event) => {
+        if (event.payload.type === "drop" && event.payload.paths.length > 0) {
+          const dropped = event.payload.paths[0];
+          if (typeof dropped === "string") {
+            setPath(dropped);
+            toast.success(t("encrypt.dropped", { path: dropped }));
+          }
+        }
+      })
+      .then((fn) => {
+        unlisten = fn;
+      })
+      .catch(() => {
+        // Tauri runtime may be unavailable in the Vite dev preview;
+        // graceful degrade -- the click-to-pick flow still works.
+      });
+    return () => {
+      unlisten?.();
+    };
+  }, [t]);
+
   const onPick = async (): Promise<void> => {
-    try {
-      const picked = await open({ multiple: false, directory: false });
-      if (typeof picked === "string") {
-        setPath(picked);
-      }
-    } catch {
-      /* user cancelled */
+    const picked = await open({ multiple: false, directory: false });
+    if (typeof picked === "string") {
+      setPath(picked);
     }
   };
 
@@ -41,7 +66,7 @@ function EncryptModal(): React.ReactElement {
       return;
     }
     if (password !== confirm) {
-      toast.error(t("errors.weak_password"));
+      toast.error(t("password.confirm_mismatch"));
       return;
     }
     encryptMutation.mutate(
@@ -53,13 +78,7 @@ function EncryptModal(): React.ReactElement {
           setConfirm("");
           void navigate({ to: "/dashboard" });
         },
-        onError: (err) => {
-          if (err instanceof SidecarHttpError) {
-            toast.error(err.detail);
-          } else {
-            toast.error(t("errors.network"));
-          }
-        },
+        onError: (err) => toastSidecarError(err, t),
       },
     );
   };
@@ -119,10 +138,20 @@ function EncryptModal(): React.ReactElement {
           placeholder={t("password.confirm_placeholder")}
           showStrength={false}
         />
+        {confirm.length > 0 && password !== confirm ? (
+          <p role="alert" className="text-destructive text-xs" aria-live="polite">
+            {t("password.confirm_mismatch")}
+          </p>
+        ) : null}
 
         <button
           type="submit"
-          disabled={encryptMutation.isPending || path.length === 0 || password.length < 12}
+          disabled={
+            encryptMutation.isPending ||
+            path.length === 0 ||
+            password.length < 12 ||
+            password !== confirm
+          }
           className={cn(
             "h-10 rounded-md bg-primary font-medium text-primary-foreground text-sm",
             "hover:bg-primary/90",
