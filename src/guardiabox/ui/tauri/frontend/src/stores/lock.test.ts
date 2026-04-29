@@ -1,11 +1,6 @@
 import { createStore } from "jotai";
 import { describe, expect, it } from "vitest";
-import {
-  activeUserIdAtom,
-  expiresAtMsAtom,
-  isUnlockedAtom,
-  sessionIdAtom,
-} from "./lock";
+import { activeUserIdAtom, expiresAtMsAtom, isUnlockedAtom, sessionIdAtom } from "./lock";
 
 describe("lock atoms", () => {
   it("isUnlocked is false by default", () => {

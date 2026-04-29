@@ -1,7 +1,7 @@
 import { useUsers } from "@/api/queries";
-import { activeUserIdAtom } from "@/stores/lock";
 import { cn } from "@/lib/utils";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { activeUserIdAtom } from "@/stores/lock";
+import { Link, createFileRoute } from "@tanstack/react-router";
 import { useAtom } from "jotai";
 import { CheckCircle2, UserCircle2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -49,9 +49,7 @@ function DashboardHome(): React.ReactElement {
                 onClick={() => setActiveUserId(user.user_id)}
                 className={cn(
                   "flex w-full items-center justify-between rounded-lg border bg-card p-4 text-left transition-colors",
-                  active
-                    ? "border-primary bg-primary/5"
-                    : "border-border hover:border-primary/40",
+                  active ? "border-primary bg-primary/5" : "border-border hover:border-primary/40",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 )}
                 aria-pressed={active}

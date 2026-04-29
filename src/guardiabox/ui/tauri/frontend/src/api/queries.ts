@@ -9,7 +9,7 @@
  * complicate the anti-oracle path on /decrypt and /accept.
  */
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { UseMutationOptions, UseQueryOptions } from "@tanstack/react-query";
 import { del, get, post } from "./client";
 import type {
@@ -34,8 +34,8 @@ import type {
   UnlockRequest,
   UnlockResponse,
   UserCreateRequest,
-  UsersList,
   UserView,
+  UsersList,
   VaultStatusResponse,
   VersionResponse,
 } from "./types";
@@ -44,9 +44,7 @@ import type {
 // Health / status
 // ---------------------------------------------------------------------------
 
-export function useReadyz(
-  options?: Omit<UseQueryOptions<ReadyResponse>, "queryKey" | "queryFn">,
-) {
+export function useReadyz(options?: Omit<UseQueryOptions<ReadyResponse>, "queryKey" | "queryFn">) {
   return useQuery<ReadyResponse>({
     queryKey: ["readyz"],
     queryFn: () => get<ReadyResponse>("/readyz"),
@@ -81,9 +79,7 @@ export function useVaultStatus(
 // Init / unlock / lock
 // ---------------------------------------------------------------------------
 
-export function useInit(
-  options?: UseMutationOptions<InitResponse, Error, InitRequest>,
-) {
+export function useInit(options?: UseMutationOptions<InitResponse, Error, InitRequest>) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: InitRequest) => post<InitResponse>("/api/v1/init", body),
@@ -95,18 +91,14 @@ export function useInit(
   });
 }
 
-export function useUnlock(
-  options?: UseMutationOptions<UnlockResponse, Error, UnlockRequest>,
-) {
+export function useUnlock(options?: UseMutationOptions<UnlockResponse, Error, UnlockRequest>) {
   return useMutation({
     mutationFn: (body: UnlockRequest) => post<UnlockResponse>("/api/v1/vault/unlock", body),
     ...options,
   });
 }
 
-export function useLock(
-  options?: UseMutationOptions<void, Error, { session_id: string }>,
-) {
+export function useLock(options?: UseMutationOptions<void, Error, { session_id: string }>) {
   return useMutation({
     mutationFn: (body: { session_id: string }) => post<void>("/api/v1/vault/lock", body),
     ...options,
@@ -125,9 +117,7 @@ export function useUsers(options?: Omit<UseQueryOptions<UsersList>, "queryKey" |
   });
 }
 
-export function useCreateUser(
-  options?: UseMutationOptions<UserView, Error, UserCreateRequest>,
-) {
+export function useCreateUser(options?: UseMutationOptions<UserView, Error, UserCreateRequest>) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: UserCreateRequest) => post<UserView>("/api/v1/users", body),
@@ -185,9 +175,7 @@ export function useAuditVerify() {
 // Encrypt / Decrypt / Inspect / Secure-delete
 // ---------------------------------------------------------------------------
 
-export function useEncrypt(
-  options?: UseMutationOptions<EncryptResponse, Error, EncryptRequest>,
-) {
+export function useEncrypt(options?: UseMutationOptions<EncryptResponse, Error, EncryptRequest>) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: EncryptRequest) => post<EncryptResponse>("/api/v1/encrypt", body),
@@ -198,9 +186,7 @@ export function useEncrypt(
   });
 }
 
-export function useDecrypt(
-  options?: UseMutationOptions<DecryptResponse, Error, DecryptRequest>,
-) {
+export function useDecrypt(options?: UseMutationOptions<DecryptResponse, Error, DecryptRequest>) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: DecryptRequest) => post<DecryptResponse>("/api/v1/decrypt", body),
@@ -211,9 +197,7 @@ export function useDecrypt(
   });
 }
 
-export function useInspect(
-  options?: UseMutationOptions<InspectResponse, Error, InspectRequest>,
-) {
+export function useInspect(options?: UseMutationOptions<InspectResponse, Error, InspectRequest>) {
   return useMutation({
     mutationFn: (body: InspectRequest) => post<InspectResponse>("/api/v1/inspect", body),
     ...options,
@@ -234,9 +218,7 @@ export function useSecureDelete(
 // Share / Accept
 // ---------------------------------------------------------------------------
 
-export function useShare(
-  options?: UseMutationOptions<ShareResponse, Error, ShareRequest>,
-) {
+export function useShare(options?: UseMutationOptions<ShareResponse, Error, ShareRequest>) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: ShareRequest) => post<ShareResponse>("/api/v1/share", body),
@@ -247,9 +229,7 @@ export function useShare(
   });
 }
 
-export function useAccept(
-  options?: UseMutationOptions<AcceptResponse, Error, AcceptRequest>,
-) {
+export function useAccept(options?: UseMutationOptions<AcceptResponse, Error, AcceptRequest>) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: AcceptRequest) => post<AcceptResponse>("/api/v1/accept", body),
@@ -264,7 +244,7 @@ export function useAccept(
 // Doctor
 // ---------------------------------------------------------------------------
 
-export function useDoctor(verifyAudit: boolean = false, reportSsd: boolean = false) {
+export function useDoctor(verifyAudit = false, reportSsd = false) {
   const params = new URLSearchParams();
   if (verifyAudit) params.set("verify_audit", "true");
   if (reportSsd) params.set("report_ssd", "true");
