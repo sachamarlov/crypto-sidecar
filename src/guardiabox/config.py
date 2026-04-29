@@ -17,9 +17,13 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class CryptoSettings(BaseSettings):
     """Cryptographic parameters (defaults match OWASP 2026 recommendations)."""
 
+    # Audit A P1-8: align floors with core.constants.{ARGON2_MIN_MEMORY_KIB,
+    # ARGON2_MIN_TIME_COST}. Previously memory_cost ge=19_456 (~19 MiB) and
+    # time_cost ge=2 misled env-var consumers; the runtime KDF rejected
+    # anything below 64 MiB / t=3.
     pbkdf2_iterations: int = Field(default=600_000, ge=600_000)
-    argon2id_memory_cost_kib: int = Field(default=65_536, ge=19_456)  # 64 MiB
-    argon2id_time_cost: int = Field(default=3, ge=2)
+    argon2id_memory_cost_kib: int = Field(default=65_536, ge=65_536)  # 64 MiB
+    argon2id_time_cost: int = Field(default=3, ge=3)
     argon2id_parallelism: int = Field(default=1, ge=1)
     rsa_key_bits: Literal[3072, 4096] = 4096
     aes_nonce_bytes: Literal[12] = 12

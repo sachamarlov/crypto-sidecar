@@ -124,19 +124,28 @@ async def init_vault(
 
     await asyncio.to_thread(_run_alembic_upgrade, paths.db)
 
-    admin_key = derive_admin_key(config, password)
+    # Audit A P1-2: derive_admin_key returns immutable bytes; copy
+    # into a bytearray so we can zero-fill the buffer before exiting
+    # init_vault. The append() call inside SQLAlchemy still copies
+    # the key into pyca's AESGCM C context (defense-in-depth limit
+    # documented in THREAT_MODEL §4.5), but the local Python ref
+    # disappears the moment we leave this scope.
+    raw_key = derive_admin_key(config, password)
+    admin_key = bytearray(raw_key)
     engine = create_engine(f"sqlite+aiosqlite:///{paths.db}")
     try:
         async with session_scope(engine) as session:
             await append(
                 session,
-                admin_key,
+                bytes(admin_key),
                 actor_user_id=None,
                 action=AuditAction.SYSTEM_STARTUP,
                 metadata={"event": "vault.init"},
             )
     finally:
         await engine.dispose()
+        for i in range(len(admin_key)):
+            admin_key[i] = 0
 
     _log.info("vault.initialised", data_dir=str(paths.data_dir))
     return paths

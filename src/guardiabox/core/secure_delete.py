@@ -137,8 +137,14 @@ def secure_delete(
     resolved = path.resolve(strict=True)
     if resolved.is_dir():
         raise IsADirectoryError(f"refusing to secure-delete a directory: {resolved}")
-    if resolved.is_symlink():
-        raise ValueError(f"refusing to secure-delete a symlink: {resolved}")
+    # Audit A P1-5: is_symlink() only catches POSIX symlinks; Windows
+    # junctions and mount points carry IO_REPARSE_TAG_MOUNT_POINT and
+    # need the broader _is_reparse_point check that safe_path uses
+    # for path containment.
+    from guardiabox.fileio.safe_path import _is_reparse_point  # noqa: PLC0415 -- avoid cycle
+
+    if _is_reparse_point(resolved):
+        raise ValueError(f"refusing to secure-delete a reparse point: {resolved}")
 
     _overwrite_dod(resolved, passes=passes)
     resolved.unlink()
