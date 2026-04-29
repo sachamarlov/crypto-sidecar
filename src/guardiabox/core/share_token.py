@@ -102,7 +102,15 @@ MAX_WRAPPED_DEK_BYTES: Final[int] = 1024
 to force a large allocation before further validation."""
 
 SIGNATURE_BYTES: Final[int] = 512
-"""RSA-PSS signature length for 4096-bit keys (production keystore default)."""
+"""RSA-PSS signature length for 4096-bit keys (production keystore default).
+
+Audit A P2-3 / ε-37: this constant is the wire-format default for
+the ``rsa_key_bits=4096`` configuration. ``read_token`` validates
+the runtime signature length against the loaded public key (key
+size in bytes) so a 3072-bit keystore (allowed by Settings.
+rsa_key_bits) emits and verifies a 384-byte signature without
+mis-parsing the layout. See ``read_token``'s ``signature_len``
+parameter for the runtime override path."""
 
 PERMISSION_READ: Final[int] = 1 << 0
 """Bit 0 — recipient may decrypt the embedded ciphertext."""

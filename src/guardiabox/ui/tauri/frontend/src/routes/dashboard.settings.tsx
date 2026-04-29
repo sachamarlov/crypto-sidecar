@@ -8,7 +8,7 @@ export const Route = createFileRoute("/dashboard/settings")({
 
 function SettingsModal(): React.ReactElement {
   const { t } = useTranslation();
-  const doctorQuery = useDoctor(false, true);
+  const doctorQuery = useDoctor({ reportSsd: true });
   const versionQuery = useVersion();
 
   return (

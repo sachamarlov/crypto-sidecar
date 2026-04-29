@@ -29,5 +29,12 @@ export const isUnlockedAtom = atom((get) => {
   return Date.now() < exp;
 });
 
-/** Active user id (after `/users/{id}/unlock` -- per-user vault key). */
+/**
+ * Active user id -- tracks which vault user the share/accept flows
+ * should target. Set client-side from ``dashboard.index.tsx`` via the
+ * "select user" picker. Per-user RSA-private unwrap happens server-
+ * side at share / accept time (ADR-0004); the frontend never holds
+ * a per-user key. Audit B P2-4 / ε-41: docstring used to reference a
+ * non-existent ``/users/{id}/unlock`` endpoint.
+ */
 export const activeUserIdAtom = atom<string | null>(null);

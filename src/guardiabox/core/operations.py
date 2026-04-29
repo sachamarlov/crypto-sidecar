@@ -28,6 +28,7 @@ from pathlib import Path
 import secrets
 import time
 from typing import IO
+import unicodedata as _UNICODEDATA
 from uuid import UUID
 
 from cryptography.exceptions import InvalidTag
@@ -642,8 +643,22 @@ def _default_decrypt_dest(source: Path) -> Path:
 
 
 def _zero_fill(buf: bytearray) -> None:
-    for i in range(len(buf)):
-        buf[i] = 0
+    """Best-effort zeroing of a bytearray buffer.
+
+    Audit C P2-1 / ε-16: pure-Python ``buf[i] = 0`` is subject to
+    CPython optimisation passes that may keep intermediate copies in
+    register or unreachable PyObject slots. ``ctypes.memset`` writes
+    directly through the buffer's address, bypassing the interpreter
+    layer. THREAT_MODEL §4.5 still documents the residual GC limit
+    (pyca's AESGCM C-context owns its own copy), but this clears
+    every Python-side reference reliably.
+    """
+    if len(buf) == 0:
+        return
+    import ctypes  # noqa: PLC0415 -- stdlib, defer import to keep module load light
+
+    addr = ctypes.addressof(ctypes.c_char.from_buffer(buf))
+    ctypes.memset(addr, 0, len(buf))
 
 
 def _check_dest_not_existing(target: Path, *, force: bool) -> None:
@@ -673,9 +688,11 @@ def _password_bytes(password: str) -> bytes:
     NFC on text output paths) and matches what a user's keyboard input
     usually produces.
     """
-    import unicodedata
-
-    return unicodedata.normalize("NFC", password).encode("utf-8")
+    # Audit E P1-12 / ε-8: ``unicodedata`` import was inline in the
+    # original implementation. Pulled to module-top -- it is stdlib,
+    # has no circular-import excuse, and the inline form misleads
+    # readers of the hot password derivation path.
+    return _UNICODEDATA.normalize("NFC", password).encode("utf-8")
 
 
 # ---------------------------------------------------------------------------

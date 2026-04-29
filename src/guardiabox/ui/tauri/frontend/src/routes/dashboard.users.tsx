@@ -1,6 +1,8 @@
 import { SidecarHttpError } from "@/api/client";
 import { useCreateUser, useDeleteUser, useUsers } from "@/api/queries";
+import { ConfirmDestructive } from "@/components/ConfirmDestructive";
 import { PasswordField } from "@/components/PasswordField";
+import { Skeleton, SkeletonRow } from "@/components/Skeleton";
 import { toastSidecarError } from "@/lib/sidecarErrors";
 import { createFileRoute } from "@tanstack/react-router";
 import { Trash2, UserPlus } from "lucide-react";
@@ -52,8 +54,8 @@ function UsersModal(): React.ReactElement {
     );
   };
 
+  // Audit B P1-7 / δ-3: replace window.confirm with ConfirmDestructive.
   const onDelete = (userId: string): void => {
-    if (!window.confirm(t("users.delete_confirm_subtitle"))) return;
     deleteMutation.mutate(userId, {
       onSuccess: () => toast.success(t("users.delete_success")),
       onError: (err) => toastSidecarError(err, t),
@@ -106,7 +108,11 @@ function UsersModal(): React.ReactElement {
       <section>
         <h3 className="mb-3 font-medium text-sm">{t("dashboard.users_section")}</h3>
         {usersQuery.isLoading ? (
-          <p className="text-muted-foreground text-sm">{t("common.loading")}</p>
+          <div className="flex flex-col gap-2">
+            <SkeletonRow />
+            <SkeletonRow />
+            <Skeleton className="h-3 w-1/3" />
+          </div>
         ) : (
           <ul className="flex flex-col gap-2">
             {usersQuery.data?.users.map((u) => (
@@ -118,16 +124,23 @@ function UsersModal(): React.ReactElement {
                   <span className="font-medium">{u.username}</span>
                   <span className="font-mono text-muted-foreground text-xs">{u.user_id}</span>
                 </span>
-                <button
-                  type="button"
-                  onClick={() => onDelete(u.user_id)}
-                  disabled={deleteMutation.isPending}
-                  aria-label={t("users.delete_button")}
-                  className="flex items-center gap-1 rounded-md border border-destructive/40 bg-destructive/10 px-2 py-1 text-destructive text-xs hover:bg-destructive/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive disabled:opacity-60"
-                >
-                  <Trash2 className="h-3.5 w-3.5" aria-hidden />
-                  {t("common.delete")}
-                </button>
+                <ConfirmDestructive
+                  title={t("users.delete_confirm_title")}
+                  description={t("users.delete_confirm_subtitle")}
+                  confirmLabel={t("users.delete_button")}
+                  onConfirm={() => onDelete(u.user_id)}
+                  trigger={
+                    <button
+                      type="button"
+                      disabled={deleteMutation.isPending}
+                      aria-label={t("users.delete_button")}
+                      className="flex items-center gap-1 rounded-md border border-destructive/40 bg-destructive/10 px-2 py-1 text-destructive text-xs hover:bg-destructive/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive disabled:opacity-60"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                      {t("common.delete")}
+                    </button>
+                  }
+                />
               </li>
             ))}
           </ul>

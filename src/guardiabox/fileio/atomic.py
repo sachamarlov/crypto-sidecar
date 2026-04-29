@@ -46,10 +46,17 @@ def atomic_writer(path: Path) -> Iterator[IO[bytes]]:
     # `delete=False` because we replace (or unlink) the file ourselves, and we
     # intentionally close + rename outside of a context manager so this sits
     # below a single try/except that encompasses the whole commit flow.
+    # Audit C P2-4 / ε-18: previously prefix=f".{path.name}." which
+    # exposed the source filename on the filesystem mid-write -- a
+    # local pollster could correlate timing with which files were
+    # being touched. Random uuid prefix decouples the temp file
+    # name from the source.
+    import uuid  # noqa: PLC0415 -- stdlib, defer to keep module load light
+
     tmp = tempfile.NamedTemporaryFile(  # noqa: SIM115 — lifecycle owned below
         mode="wb",
         dir=str(path.parent),
-        prefix=f".{path.name}.",
+        prefix=f".guardiabox.tmp.{uuid.uuid4().hex}.",
         suffix=_TEMP_SUFFIX,
         delete=False,
     )

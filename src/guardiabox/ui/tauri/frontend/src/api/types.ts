@@ -229,11 +229,8 @@ export interface SsdReport {
   recommendation: string;
 }
 
-export interface AuditVerifyView {
-  ok: boolean;
-  first_bad_sequence: number | null;
-  entries_checked: number;
-}
+/** Alias for backwards-compat with audit verify view consumers. Audit E P2-6 / ε-28. */
+export type AuditVerifyView = AuditVerifyResponse;
 
 export interface DoctorResponse {
   data_dir: string;

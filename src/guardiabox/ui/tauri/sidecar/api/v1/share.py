@@ -25,6 +25,7 @@ unlock that already has its own 5-attempts/min rate limit envelope
 from __future__ import annotations
 
 from pathlib import Path
+import time
 from typing import Annotated
 import uuid
 
@@ -279,6 +280,4 @@ def _to_epoch(days: int) -> int:
     """Return Unix epoch seconds ``days`` from now (0 == never)."""
     if days <= 0:
         return 0
-    import time
-
     return int(time.time()) + days * 86_400
