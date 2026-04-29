@@ -52,6 +52,10 @@ function EncryptModal(): React.ReactElement {
     };
   }, [t]);
 
+  // ε-7: previously wrapped in try/catch with /* user cancelled */
+  // comment, but Tauri's open() returns null on cancel rather than
+  // throwing -- the catch only fired for missing-runtime errors in
+  // the Vite dev preview. Drop the empty block.
   const onPick = async (): Promise<void> => {
     const picked = await open({ multiple: false, directory: false });
     if (typeof picked === "string") {
