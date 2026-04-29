@@ -132,7 +132,7 @@ jobs:
       # `cache: pnpm` requires pnpm-lock.yaml to exist; we omit it here and
       # rely on pnpm's own content-addressable store cache once the lockfile
       # has been committed in a follow-up PR.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
 
