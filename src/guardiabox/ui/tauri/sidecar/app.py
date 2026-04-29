@@ -20,6 +20,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from slowapi.errors import RateLimitExceeded
 
 from guardiabox import __version__
@@ -103,12 +104,38 @@ def create_app(
             "Authenticated via per-launch session token. See ADR-0016."
         ),
         lifespan=_lifespan,
-        # CORS deliberately disabled (ADR-0016 §I): the only legitimate
-        # caller is the Tauri shell on the same origin via the loopback
-        # URL it discovered through the handshake.
         docs_url=None,
         redoc_url=None,
         openapi_url="/openapi.json",
+    )
+    # CORS: the Tauri 2 WebView serves the frontend from the
+    # `http(s)://tauri.localhost` custom protocol while the sidecar
+    # listens on `http://127.0.0.1:<random>` -- these are *different
+    # origins*, so the browser issues a CORS preflight on every
+    # non-simple fetch. ADR-0016 sec I assumed same-origin, which is
+    # false in Tauri 2 + WebView2; without these headers, every API
+    # call from the lock screen onwards fails with "failed to fetch".
+    #
+    # Authentication is still gated by the per-launch token in the
+    # X-GuardiaBox-Token header (TokenAuthMiddleware). CORS only
+    # decides which *origins* may issue the preflight; the token
+    # decides which *requests* are honoured. Bind-address remains
+    # 127.0.0.1-only (NFR + Bind-address security test).
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[
+            "http://tauri.localhost",
+            "https://tauri.localhost",
+            "tauri://localhost",
+            "http://localhost:1420",  # Vite dev server
+        ],
+        allow_credentials=False,  # token is a header, no cookies -- ADR-0016
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allow_headers=[
+            "Content-Type",
+            "X-GuardiaBox-Token",
+            "X-GuardiaBox-Session",
+        ],
     )
     app.state.session_token = session_token
     app.state.settings = resolved_settings
