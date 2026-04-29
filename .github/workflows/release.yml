@@ -59,7 +59,7 @@ jobs:
             target: aarch64-apple-darwin
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: astral-sh/setup-uv@v4
         with:
@@ -107,7 +107,7 @@ jobs:
             bundle_glob: "src/guardiabox/ui/tauri/src-tauri/target/release/bundle/dmg/*.dmg"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Linux system deps
         if: matrix.os == 'ubuntu-latest'
@@ -186,7 +186,7 @@ jobs:
       contents: read
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Download Windows bundle
         uses: actions/download-artifact@v4
@@ -228,7 +228,7 @@ jobs:
       contents: read
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: astral-sh/setup-uv@v4
         with:
@@ -295,7 +295,7 @@ jobs:
       contents: read
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: astral-sh/setup-uv@v4
         with:
