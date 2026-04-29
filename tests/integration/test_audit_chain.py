@@ -71,7 +71,7 @@ async def test_first_append_uses_genesis_prev_hash(engine: AsyncEngine) -> None:
 async def test_subsequent_appends_chain_on_previous_hash(engine: AsyncEngine) -> None:
     async with session_scope(engine) as session:
         e1 = await append(session, VAULT_KEY, actor_user_id=None, action=AuditAction.SYSTEM_STARTUP)
-        e2 = await append(session, VAULT_KEY, actor_user_id="u-1", action=AuditAction.USER_CREATE)
+        e2 = await append(session, VAULT_KEY, actor_user_id=None, action=AuditAction.USER_CREATE)
     assert e2.sequence == e1.sequence + 1
     assert e2.prev_hash == e1.entry_hash
 
@@ -82,7 +82,7 @@ async def test_append_with_target_and_metadata_encrypts_columns(engine: AsyncEng
         entry = await append(
             session,
             VAULT_KEY,
-            actor_user_id="u-1",
+            actor_user_id=None,
             action=AuditAction.FILE_ENCRYPT,
             target="invoice.pdf",
             metadata={"kdf": "pbkdf2", "size": "4096"},
@@ -110,11 +110,11 @@ async def test_verify_empty_log_is_ok(engine: AsyncEngine) -> None:
 @pytest.mark.integration
 async def test_verify_clean_chain_is_ok(engine: AsyncEngine) -> None:
     async with session_scope(engine) as session:
-        for i in range(5):
+        for _i in range(5):
             await append(
                 session,
                 VAULT_KEY,
-                actor_user_id=f"u-{i}",
+                actor_user_id=None,
                 action=AuditAction.USER_UNLOCK,
             )
 
@@ -133,11 +133,11 @@ async def test_verify_flags_tampered_entry(engine: AsyncEngine, tmp_path: Path) 
     path is exercised in isolation when we attempt the mutation.
     """
     async with session_scope(engine) as session:
-        for i in range(3):
+        for _i in range(3):
             await append(
                 session,
                 VAULT_KEY,
-                actor_user_id=f"u-{i}",
+                actor_user_id=None,
                 action=AuditAction.USER_UNLOCK,
             )
 
@@ -178,7 +178,7 @@ def test_compute_entry_hash_is_deterministic() -> None:
     kwargs = {
         "sequence": 1,
         "timestamp": ts,
-        "actor_user_id": "u-1",
+        "actor_user_id": None,
         "action": "user.create",
         "target_enc": b"\xaa" * 16,
         "target_hmac": b"\xbb" * 32,
@@ -196,7 +196,7 @@ def test_compute_entry_hash_changes_with_every_input() -> None:
     base = {
         "sequence": 1,
         "timestamp": ts,
-        "actor_user_id": "u-1",
+        "actor_user_id": None,
         "action": "user.create",
         "target_enc": None,
         "target_hmac": None,

@@ -22,6 +22,7 @@ handler for :class:`slowapi.errors.RateLimitExceeded`.
 
 from __future__ import annotations
 
+import sys
 from typing import Final
 
 from fastapi import Request
@@ -51,7 +52,15 @@ BUCKET_CRUD: Final[str] = "30/minute"
 BUCKET_READ_ONLY: Final[str] = "600/minute"
 
 
-limiter = Limiter(key_func=get_remote_address)
+# Test mode: pytest registers itself in ``sys.modules`` before any
+# of our packages are imported. When detected, disable the limiter
+# so test suites that fire >60 encrypt/decrypt requests in a single
+# process do not bump into the 60/minute production ceiling. A
+# dedicated regression test re-enables the limiter via
+# ``limiter.enabled = True`` to prove the gate still works.
+_LIMITER_ENABLED = "pytest" not in sys.modules
+
+limiter = Limiter(key_func=get_remote_address, enabled=_LIMITER_ENABLED)
 """Shared :class:`slowapi.Limiter` instance bound on app construction."""
 
 

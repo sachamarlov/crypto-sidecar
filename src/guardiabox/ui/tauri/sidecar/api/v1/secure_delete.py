@@ -15,15 +15,21 @@ Auth: launch token only (overwrite-dod has no DB dependency).
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import Field
 
+from guardiabox.config import Settings
+from guardiabox.core.exceptions import PathTraversalError, SymlinkEscapeError
 from guardiabox.core.secure_delete import (
     SecureDeleteMethod,
     secure_delete as run_secure_delete,
 )
 from guardiabox.fileio.platform import is_ssd
+from guardiabox.fileio.safe_path import resolve_within
+from guardiabox.ui.tauri.sidecar.api.dependencies import settings_dep
+from guardiabox.ui.tauri.sidecar.api.rate_limit import BUCKET_WRITE, limiter
 from guardiabox.ui.tauri.sidecar.api.schemas import SidecarBaseModel
 
 __all__ = ["build_secure_delete_router"]
@@ -57,8 +63,23 @@ def build_secure_delete_router() -> APIRouter:
         response_model=SecureDeleteResponse,
         status_code=status.HTTP_200_OK,
     )
-    def secure_delete(body: SecureDeleteRequest) -> SecureDeleteResponse:
-        target = Path(body.path)
+    @limiter.limit(BUCKET_WRITE)
+    def secure_delete(
+        request: Request,
+        body: SecureDeleteRequest,
+        settings: Annotated[Settings, Depends(settings_dep)],
+    ) -> SecureDeleteResponse:
+        del request  # consumed by slowapi via signature inspection
+        # Audit A P0-1: previously the router accepted any absolute
+        # path with no resolve_within guard, so an attacker holding the
+        # launch token could DoD-erase /etc/passwd or any file the
+        # sidecar process could write to. resolve_within constrains
+        # the operation to the vault data_dir; the symlink/reparse
+        # checks reject Windows junctions + POSIX symlinks alike.
+        try:
+            target = resolve_within(Path(body.path), settings.data_dir)
+        except (PathTraversalError, SymlinkEscapeError) as exc:
+            raise HTTPException(status_code=400, detail="path validation failed") from exc
         if not target.is_file():
             raise HTTPException(status_code=404, detail=f"file not found: {target}")
 

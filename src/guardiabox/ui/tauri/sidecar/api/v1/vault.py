@@ -32,8 +32,10 @@ from guardiabox.security.vault_admin import (
     read_admin_config,
     verify_admin_password,
 )
+from guardiabox.ui.tauri.sidecar.api.dependencies import require_session
+from guardiabox.ui.tauri.sidecar.api.rate_limit import BUCKET_AUTH_UNLOCK, limiter
 from guardiabox.ui.tauri.sidecar.api.schemas import SidecarBaseModel
-from guardiabox.ui.tauri.sidecar.state import SessionStore
+from guardiabox.ui.tauri.sidecar.state import SessionStore, VaultSession
 
 __all__ = [
     "build_vault_router",
@@ -57,10 +59,6 @@ class UnlockRequest(SidecarBaseModel):
 class UnlockResponse(SidecarBaseModel):
     session_id: str
     expires_in_seconds: int
-
-
-class LockRequest(SidecarBaseModel):
-    session_id: str
 
 
 class StatusResponse(SidecarBaseModel):
@@ -97,11 +95,21 @@ def build_vault_router() -> APIRouter:
         response_model=UnlockResponse,
         status_code=status.HTTP_200_OK,
     )
+    @limiter.limit(BUCKET_AUTH_UNLOCK)
     def unlock(
+        request: Request,
         body: UnlockRequest,
         settings: Annotated[Settings, Depends(_settings)],
         store: Annotated[SessionStore, Depends(_store)],
     ) -> UnlockResponse:
+        # Audit A P1-3 / C P0-1: rate-limit decorator was declared in
+        # rate_limit.py but never applied -- brute-force /vault/unlock
+        # was effectively unbounded (4 attempts/sec post-PBKDF2 at the
+        # CPU floor). 5/min per source IP closes the ADR-0016 sec D
+        # gate that the threat model relies on. slowapi requires the
+        # `request: Request` first parameter to extract the client IP
+        # via get_remote_address.
+        del request  # used by slowapi via inspection
         paths = vault_paths(settings.data_dir)
         admin_key: bytes | None = None
         try:
@@ -143,10 +151,16 @@ def build_vault_router() -> APIRouter:
 
     @router.post("/lock", status_code=status.HTTP_204_NO_CONTENT)
     def lock(
-        body: LockRequest,
+        session: Annotated[VaultSession, Depends(require_session)],
         store: Annotated[SessionStore, Depends(_store)],
     ) -> None:
-        store.close(body.session_id)
+        # Audit A P0-3: previously read session_id from the body, no
+        # require_session dep -- any attacker holding the launch token
+        # could force-close any session id they could guess (DoS
+        # primitive). require_session dep validates the X-GuardiaBox-
+        # Session header against the SessionStore, returning 401 on
+        # missing/expired. The session id never travels in a body.
+        store.close(session.session_id)
 
     @router.get("/status", response_model=StatusResponse)
     def vault_status(

@@ -35,6 +35,7 @@ from guardiabox.core.exceptions import (
 from guardiabox.core.kdf import Argon2idKdf, Pbkdf2Kdf
 from guardiabox.core.operations import encrypt_file
 from guardiabox.logging import get_logger
+from guardiabox.ui.tauri.sidecar.api.rate_limit import BUCKET_WRITE, limiter
 from guardiabox.ui.tauri.sidecar.api.schemas import SidecarBaseModel
 
 __all__ = ["build_encrypt_router"]
@@ -94,16 +95,29 @@ def build_encrypt_router() -> APIRouter:
         response_model=EncryptResponse,
         status_code=status.HTTP_200_OK,
     )
+    @limiter.limit(BUCKET_WRITE)
     def encrypt(
+        request: Request,
         body: EncryptRequest,
-        _settings_dep: Annotated[Settings, Depends(_settings)],
+        settings: Annotated[Settings, Depends(_settings)],
     ) -> EncryptResponse:
-        # Resolve and validate paths. Mirror the TUI policy of using the
-        # source's parent as the resolve_within root; the safe_path
-        # guard still rejects symlink escapes and reparse points.
+        del request  # consumed by slowapi via signature inspection
+        # Audit C P1-2: previously root=source.parent which made
+        # resolve_within(source, source.parent) trivially-passing --
+        # the router accepted any absolute path including system
+        # files. Now constrain to a sane allow-list: vault data_dir
+        # plus the user's home dir (Documents / Downloads / Desktop
+        # are the only realistic encrypt targets a desktop user
+        # picks via the Tauri dialog).
         source = Path(body.path)
         dest_path = Path(body.dest) if body.dest is not None else None
         kdf_impl: Pbkdf2Kdf | Argon2idKdf = Argon2idKdf() if body.kdf == "argon2id" else Pbkdf2Kdf()
+        allowed_root = _resolve_allowed_root(source, settings)
+        if allowed_root is None:
+            raise HTTPException(
+                status_code=400,
+                detail="path validation failed",
+            )
 
         if not source.is_file():
             raise HTTPException(
@@ -116,7 +130,7 @@ def build_encrypt_router() -> APIRouter:
             output = encrypt_file(
                 source,
                 body.password.get_secret_value(),
-                root=source.parent,
+                root=allowed_root,
                 kdf=kdf_impl,
                 dest=dest_path,
                 force=body.force,
@@ -151,3 +165,34 @@ def build_encrypt_router() -> APIRouter:
         )
 
     return router
+
+
+def _resolve_allowed_root(source: Path, settings: Settings) -> Path | None:
+    """Return the broadest allowed ancestor of ``source`` or None.
+
+    Audit C P1-2 mitigation: the router caller is the Tauri WebView
+    in the trust model, so an XSS in the renderer must not be able
+    to encrypt arbitrary system files (Windows registry hives,
+    /etc/shadow, browser cookie stores, etc.). Acceptable roots:
+
+    * ``settings.data_dir`` -- the vault itself.
+    * ``Path.home()`` -- user's home directory (covers Documents,
+      Downloads, Desktop, OneDrive shells, etc.).
+
+    Both roots are fully resolved so symlinks cannot point outside.
+    The function returns the first root the source resolves under;
+    None when neither matches, so the caller can return 400.
+    """
+    try:
+        resolved_source = source.resolve(strict=False)
+    except (OSError, RuntimeError):
+        return None
+    candidates = [settings.data_dir.resolve(), Path.home().resolve()]
+    for root in candidates:
+        try:
+            resolved_source.relative_to(root)
+        except ValueError:
+            continue
+        else:
+            return root
+    return None
